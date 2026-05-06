@@ -1,0 +1,151 @@
+// Prisma Schema - Family Website
+// Database: PostgreSQL (Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==============================
+// MODEL: User
+// ==============================
+model User {
+  id          String   @id @default(cuid())
+  username    String   @unique
+  password    String
+  displayName String
+  role        String   @default("member") // "admin" | "member"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  photos      Photo[]
+  albums      Album[]
+
+  @@map("users")
+}
+
+// ==============================
+// MODEL: Album
+// ==============================
+model Album {
+  id           String    @id @default(cuid())
+  name         String
+  description  String?
+  coverPhotoId String?   // filename của ảnh bìa
+  displayDate  DateTime? // ngày hiển thị (admin chỉnh được)
+  isDefault    Boolean   @default(false) // album "Ảnh riêng lẻ"
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  createdBy    User      @relation(fields: [userId], references: [id])
+  userId       String
+
+  photos       Photo[]
+
+  @@map("albums")
+}
+
+// ==============================
+// MODEL: Photo
+// ==============================
+model Photo {
+  id           String    @id @default(cuid())
+  filename     String
+  originalName String
+  caption      String?
+  size         Int
+  mimeType     String
+  width        Int?
+  height       Int?
+  takenAt      DateTime? // timeline date — admin chỉnh được, default = uploadedAt
+  uploadedAt   DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  uploadedBy   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+
+  album        Album?    @relation(fields: [albumId], references: [id], onDelete: SetNull)
+  albumId      String?
+
+  @@map("photos")
+}
+
+// ==============================
+// MODEL: EventType (custom + hệ thống)
+// ==============================
+model EventType {
+  id       String  @id @default(cuid())
+  slug     String  @unique  // dùng làm Event.type string
+  name     String
+  emoji    String  @default("📌")
+  color    String  @default("#7c7ccc")
+  isSystem Boolean @default(false) // type mặc định, không xóa được
+  sortOrder Int    @default(99)
+
+  events   Event[]
+
+  @@map("event_types")
+}
+
+// ==============================
+// MODEL: Event
+// ==============================
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  date        DateTime
+  isLunar     Boolean  @default(false) // true = ngày âm lịch
+  isRecurring Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  eventType   EventType @relation(fields: [typeId], references: [id])
+  typeId      String
+
+  @@map("events")
+}
+
+// ==============================
+// MODEL: SiteSetting (key-value config)
+// ==============================
+model SiteSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
+// ==============================
+// MODEL: FamilyMember (Cây gia phả)
+// ==============================
+model FamilyMember {
+  id            String    @id @default(cuid())
+  name          String
+  nickname      String?
+  gender        String    @default("other") // "male" | "female" | "other"
+  birthDate     String?   // "YYYY-MM-DD" hoặc "DD/MM" âm lịch
+  isLunarBirth  Boolean   @default(false)
+  deathDate     String?
+  isLunarDeath  Boolean   @default(false)
+  bio           String?
+  photoUrl      String?   // path to photo in /uploads/
+  generation    Int       @default(1)
+  orderInGen    Int       @default(0)
+
+  // Relations (lưu ID dạng string để đơn giản với SQLite)
+  fatherId      String?
+  motherId      String?
+  spouseIds     String    @default("[]") // JSON array
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("family_members")
+}

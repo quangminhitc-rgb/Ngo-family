@@ -1,0 +1,100 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { requireAdmin } from '@/lib/auth'
+import { uploadToStorage } from '@/lib/storage'
+import path from 'path'
+
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    await requireAdmin()
+    const contentType = req.headers.get('content-type') ?? ''
+
+    let updateData: any = {}
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await req.formData()
+      const get = (k: string) => (formData.get(k) as string | null) ?? ''
+
+      const name = get('name')
+      if (name) updateData.name = name.trim()
+
+      const nickname = get('nickname')
+      updateData.nickname = nickname.trim() || null
+
+      const gender = get('gender')
+      if (gender) updateData.gender = gender
+
+      const birthDate = get('birthDate')
+      updateData.birthDate = birthDate || null
+      updateData.isLunarBirth = get('isLunarBirth') === 'true'
+
+      const deathDate = get('deathDate')
+      updateData.deathDate = deathDate || null
+      updateData.isLunarDeath = get('isLunarDeath') === 'true'
+
+      const bio = get('bio')
+      updateData.bio = bio.trim() || null
+
+      const fatherId = get('fatherId')
+      updateData.fatherId = fatherId || null
+
+      const motherId = get('motherId')
+      updateData.motherId = motherId || null
+
+      const spouseIdsRaw = get('spouseIds')
+      if (spouseIdsRaw) {
+        try { updateData.spouseIds = JSON.stringify(JSON.parse(spouseIdsRaw)) }
+        catch { updateData.spouseIds = '[]' }
+      }
+
+      const generation = get('generation')
+      if (generation) updateData.generation = parseInt(generation)
+      const orderInGen = get('orderInGen')
+      if (orderInGen !== '') updateData.orderInGen = parseInt(orderInGen)
+
+      // Photo file
+      const file = formData.get('photo') as File | null
+      if (file && file.size > 0 && file.type.startsWith('image/')) {
+        const ext = path.extname(file.name) || '.jpg'
+        const filename = `member-${params.id}-${Date.now()}${ext}`
+        const buffer = Buffer.from(await file.arrayBuffer())
+        updateData.photoUrl = await uploadToStorage('members', filename, buffer, file.type)
+      }
+    } else {
+      const body = await req.json()
+      const { name, nickname, gender, birthDate, isLunarBirth, deathDate, isLunarDeath, bio, fatherId, motherId, spouseIds, generation, orderInGen } = body
+      if (name) updateData.name = name.trim()
+      if (nickname !== undefined) updateData.nickname = nickname?.trim() || null
+      if (gender) updateData.gender = gender
+      if (birthDate !== undefined) updateData.birthDate = birthDate || null
+      if (isLunarBirth !== undefined) updateData.isLunarBirth = isLunarBirth
+      if (deathDate !== undefined) updateData.deathDate = deathDate || null
+      if (isLunarDeath !== undefined) updateData.isLunarDeath = isLunarDeath
+      if (bio !== undefined) updateData.bio = bio?.trim() || null
+      if (fatherId !== undefined) updateData.fatherId = fatherId || null
+      if (motherId !== undefined) updateData.motherId = motherId || null
+      if (spouseIds !== undefined) updateData.spouseIds = JSON.stringify(spouseIds)
+      if (generation !== undefined) updateData.generation = generation
+      if (orderInGen !== undefined) updateData.orderInGen = orderInGen
+    }
+
+    const member = await prisma.familyMember.update({ where: { id: params.id }, data: updateData })
+    return NextResponse.json({ member })
+  } catch (e: any) {
+    if (e.message === 'Unauthorized') return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 })
+    if (e.message?.includes('Forbidden')) return NextResponse.json({ error: 'Cần quyền admin' }, { status: 403 })
+    return NextResponse.json({ error: 'Lỗi server' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    await requireAdmin()
+    await prisma.familyMember.delete({ where: { id: params.id } })
+    return NextResponse.json({ success: true })
+  } catch (e: any) {
+    if (e.message === 'Unauthorized') return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 })
+    if (e.message?.includes('Forbidden')) return NextResponse.json({ error: 'Cần quyền admin' }, { status: 403 })
+    return NextResponse.json({ error: 'Lỗi server' }, { status: 500 })
+  }
+}

@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+.next/
+out/
+build/
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+prisma/*.db
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Uploads (user data - không commit lên git)
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
