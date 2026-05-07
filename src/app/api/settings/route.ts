@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
-import path from 'path'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
+import { uploadToStorage } from '@/lib/storage'
+import path from 'path'
 
 export async function GET() {
   const rows = await prisma.siteSetting.findMany()
@@ -18,27 +17,23 @@ export async function POST(req: NextRequest) {
     const contentType = req.headers.get('content-type') ?? ''
 
     if (contentType.includes('multipart/form-data')) {
-      // Upload background image
       const formData = await req.formData()
       const file = formData.get('background') as File | null
       if (!file) return NextResponse.json({ error: 'Thiếu file' }, { status: 400 })
       if (!file.type.startsWith('image/')) return NextResponse.json({ error: 'Chỉ chấp nhận ảnh' }, { status: 400 })
 
-      const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
-      if (!existsSync(uploadsDir)) await mkdir(uploadsDir, { recursive: true })
-
       const ext = path.extname(file.name) || '.jpg'
       const filename = `bg-${Date.now()}${ext}`
-      await writeFile(path.join(uploadsDir, filename), Buffer.from(await file.arrayBuffer()))
+      const buffer = Buffer.from(await file.arrayBuffer())
+      const url = await uploadToStorage('backgrounds', filename, buffer, file.type)
 
       await prisma.siteSetting.upsert({
         where: { key: 'home_background' },
-        update: { value: `/uploads/${filename}` },
-        create: { key: 'home_background', value: `/uploads/${filename}` },
+        update: { value: url },
+        create: { key: 'home_background', value: url },
       })
-      return NextResponse.json({ url: `/uploads/${filename}` })
+      return NextResponse.json({ url })
     } else {
-      // JSON settings update
       const body = await req.json()
       const results: Record<string, string> = {}
       for (const [key, value] of Object.entries(body)) {

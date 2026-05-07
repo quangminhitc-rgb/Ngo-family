@@ -10,7 +10,7 @@ function getSupabase() {
 }
 
 export async function uploadToStorage(
-  folder: 'photos' | 'members',
+  folder: 'photos' | 'members' | 'backgrounds',
   filename: string,
   buffer: Buffer,
   contentType: string,

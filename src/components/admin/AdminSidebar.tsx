@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import {
   LayoutDashboard, Image, Calendar, Users, LogOut,
-  Home, ChevronRight, Shield, GitBranch, Menu, X, Sun, Moon,
+  Home, ChevronRight, Shield, GitBranch, Menu, X, Sun, Moon, Settings,
 } from 'lucide-react'
 import { useTheme } from '@/lib/theme'
 
@@ -15,7 +15,8 @@ const adminLinks = [
   { href: '/admin/photos',    label: 'Quản lý ảnh',  icon: Image },
   { href: '/admin/calendar',  label: 'Quản lý lịch', icon: Calendar },
   { href: '/admin/family',    label: 'Cây gia phả',   icon: GitBranch },
-  { href: '/admin/accounts',  label: 'Tài khoản',    icon: Users, adminOnly: true },
+  { href: '/admin/accounts',  label: 'Tài khoản',    icon: Users,     adminOnly: true },
+  { href: '/admin/settings',  label: 'Cài đặt',      icon: Settings,  adminOnly: true },
 ]
 
 export function AdminSidebar() {

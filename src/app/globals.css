@@ -93,9 +93,54 @@ body {
 .animate-slide-up { animation: slideUp  0.3s  ease-out; }
 .animate-slide-in { animation: slideInL 0.25s ease-out; }
 
-/* ── [color-scheme] inputs in light mode ── */
+/* ── Light-mode overrides for hardcoded dark Tailwind classes ──────────────────
+   These override arbitrary-value classes used throughout admin/public pages
+   so everything adapts to light mode without rewriting every file.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Text */
+html:not(.dark) .text-white                              { color: var(--text-1) !important; }
+html:not(.dark) .hover\:text-white:hover                 { color: var(--text-1) !important; }
+html:not(.dark) .group:hover .group-hover\:text-white    { color: var(--text-1) !important; }
+html:not(.dark) .text-\[\#666\]    { color: var(--text-3) !important; }
+html:not(.dark) .text-\[\#555\]    { color: var(--text-3) !important; }
+html:not(.dark) .text-\[\#444\]    { color: var(--text-3) !important; }
+html:not(.dark) .text-\[\#333\]    { color: var(--text-3) !important; }
+html:not(.dark) .text-\[\#3a3a3a\] { color: var(--text-3) !important; }
+html:not(.dark) .text-\[\#a0a0a0\] { color: var(--text-2) !important; }
+html:not(.dark) .text-\[\#888\]    { color: var(--text-2) !important; }
+html:not(.dark) .text-\[\#8a8a8a\] { color: var(--text-2) !important; }
+
+/* Backgrounds */
+html:not(.dark) .bg-\[\#0f0f0f\]   { background-color: var(--bg) !important; }
+html:not(.dark) .bg-\[\#0a0a0a\]   { background-color: var(--bg) !important; }
+html:not(.dark) .bg-\[\#111\]      { background-color: var(--surface) !important; }
+html:not(.dark) .bg-\[\#111111\]   { background-color: var(--surface) !important; }
+html:not(.dark) .bg-\[\#1a1a1a\]   { background-color: var(--surface-2) !important; }
+html:not(.dark) .bg-\[\#131320\]   { background-color: var(--surface) !important; }
+html:not(.dark) .bg-\[\#111\]\/97  { background-color: rgba(248,249,250,0.97) !important; }
+html:not(.dark) .hover\:bg-\[\#222\]:hover         { background-color: var(--surface-2) !important; }
+html:not(.dark) .hover\:bg-\[\#1a1a1a\]:hover      { background-color: var(--surface-2) !important; }
+
+/* Borders */
+html:not(.dark) .border-\[\#1a1a1a\]               { border-color: var(--border) !important; }
+html:not(.dark) .border-\[\#1e1e1e\]               { border-color: var(--border) !important; }
+html:not(.dark) .border-\[\#2a2a2a\]               { border-color: var(--border-2) !important; }
+html:not(.dark) .border-\[\#222\]                  { border-color: var(--border) !important; }
+html:not(.dark) .border-\[\#333\]                  { border-color: var(--border-2) !important; }
+html:not(.dark) .hover\:border-\[\#222\]:hover     { border-color: var(--border) !important; }
+html:not(.dark) .hover\:border-\[\#2a2a2a\]:hover  { border-color: var(--border-2) !important; }
+html:not(.dark) .hover\:border-\[\#333\]:hover     { border-color: var(--border-2) !important; }
+
+/* Placeholder */
+html:not(.dark) .placeholder-\[\#444\]::placeholder { color: var(--text-3) !important; }
+
+/* Date/time inputs */
 html:not(.dark) input[type="date"],
-html:not(.dark) input[type="time"] { color-scheme: light; }
+html:not(.dark) input[type="time"] { color-scheme: light !important; }
+
+/* Tailwind arbitrary color-scheme class override */
+html:not(.dark) .\[color-scheme\:dark\] { color-scheme: light !important; }
 
 /* ── Family tree ── */
 .family-tree-line { stroke: var(--border-2); stroke-width: 1.5; fill: none; }

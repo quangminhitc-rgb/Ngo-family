@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useSession } from 'next-auth/react'
 import { Navbar } from '@/components/ui/Navbar'
-import { Image as ImageIcon, Calendar, GitBranch, ArrowRight, Heart, Upload, X, PartyPopper } from 'lucide-react'
+import { Image as ImageIcon, Calendar, GitBranch, ArrowRight, Heart, PartyPopper } from 'lucide-react'
 
 interface BirthdayEvent {
   id: string
@@ -14,13 +13,8 @@ interface BirthdayEvent {
 
 export default function HomePage() {
   const appName = process.env.NEXT_PUBLIC_APP_NAME ?? 'Gia Đình Tôi'
-  const { data: session } = useSession()
-  const isAdmin = session?.user?.role === 'admin'
 
   const [bgUrl, setBgUrl] = useState<string | null>(null)
-  const [uploadingBg, setUploadingBg] = useState(false)
-  const bgInputRef = useRef<HTMLInputElement>(null)
-
   const [birthdays, setBirthdays] = useState<BirthdayEvent[]>([])
   const [showBirthdayPopup, setShowBirthdayPopup] = useState(false)
 
@@ -50,20 +44,6 @@ export default function HomePage() {
       .catch(() => {})
   }, [])
 
-  const handleBgUpload = async (file: File) => {
-    if (!file.type.startsWith('image/')) return
-    setUploadingBg(true)
-    try {
-      const fd = new FormData()
-      fd.append('background', file)
-      const res = await fetch('/api/settings', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (data.url) setBgUrl(data.url)
-    } finally {
-      setUploadingBg(false)
-    }
-  }
-
   const features = [
     { icon: ImageIcon, title: 'Album Ảnh',     description: 'Lưu giữ khoảnh khắc đáng nhớ qua từng năm tháng.', href: '/album',    color: '#c9a84c' },
     { icon: Calendar,  title: 'Lịch Gia Đình', description: 'Sinh nhật, kỷ niệm và những ngày đặc biệt.',       href: '/calendar', color: '#52a852' },
@@ -81,23 +61,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Admin: upload background */}
-      {isAdmin && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <input ref={bgInputRef} type="file" accept="image/*" className="hidden"
-            onChange={e => e.target.files?.[0] && handleBgUpload(e.target.files[0])} />
-          <button onClick={() => bgInputRef.current?.click()} disabled={uploadingBg}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all disabled:opacity-50"
-            style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-2)' }}
-          >
-            {uploadingBg
-              ? <div className="w-3.5 h-3.5 border border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-              : <Upload size={13} />}
-            Đổi nền
-          </button>
-        </div>
-      )}
-
       {/* Birthday Popup */}
       {showBirthdayPopup && birthdays.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
@@ -111,7 +74,8 @@ export default function HomePage() {
             </div>
             <div className="space-y-2 my-4">
               {birthdays.map(ev => (
-                <div key={ev.id} className="px-4 py-2.5 rounded-xl" style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-bd)' }}>
+                <div key={ev.id} className="px-4 py-2.5 rounded-xl"
+                  style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-bd)' }}>
                   <p className="font-semibold" style={{ color: 'var(--text-1)' }}>{ev.title}</p>
                   <p className="text-sm mt-0.5" style={{ color: 'var(--accent)' }}>Chúc mừng sinh nhật! 🎉</p>
                 </div>
@@ -161,11 +125,7 @@ export default function HomePage() {
             {features.map(({ icon: Icon, title, description, href, color }) => (
               <Link key={href} href={href}
                 className="group p-7 rounded-2xl transition-all duration-300 hover:-translate-y-1"
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  boxShadow: 'var(--shadow)',
-                }}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}
               >
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4"
                   style={{ backgroundColor: `${color}18`, border: `1px solid ${color}35` }}>
