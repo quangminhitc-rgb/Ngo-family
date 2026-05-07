@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { X, User, Calendar, Info, Plus } from 'lucide-react'
+import { X, User, Calendar, Info, Plus, Pencil } from 'lucide-react'
 import { getPhotoUrl } from '@/lib/utils'
 
 export interface FamilyMember {
@@ -19,7 +19,7 @@ export interface FamilyMember {
   orderInGen: number
   fatherId: string | null
   motherId: string | null
-  spouseIds: string // JSON array
+  spouseIds: string
 }
 
 export interface AddChildDefaults {
@@ -31,13 +31,14 @@ export interface AddChildDefaults {
 interface FamilyTreeProps {
   members: FamilyMember[]
   onAddChild?: (defaults: AddChildDefaults) => void
+  onEdit?: (member: FamilyMember) => void
 }
 
-// ── colours ──────────────────────────────────────────────────
+// Gender accent colors — visible in both light and dark modes
 const GC = {
-  male:   { bg: '#0b1e2e', border: '#1e4f80', text: '#5a9fd4', accent: '#1e4f80' },
-  female: { bg: '#260f22', border: '#80206a', text: '#d46ab0', accent: '#80206a' },
-  other:  { bg: '#131320', border: '#424278', text: '#8888c4', accent: '#424278' },
+  male:   { border: '#3b82f6', bg: 'rgba(59,130,246,0.08)' },
+  female: { border: '#ec4899', bg: 'rgba(236,72,153,0.08)' },
+  other:  { border: '#8b5cf6', bg: 'rgba(139,92,246,0.08)' },
 }
 function gc(g: string) { return GC[g as keyof typeof GC] ?? GC.other }
 
@@ -45,7 +46,6 @@ function parseSpouseIds(raw: string): string[] {
   try { return JSON.parse(raw) } catch { return [] }
 }
 
-// ── couple-unit helpers ───────────────────────────────────────
 interface CoupleUnit {
   key: string
   primary: FamilyMember
@@ -69,7 +69,6 @@ function buildUnits(members: FamilyMember[]): CoupleUnit[] {
 
     if (coupled) {
       placed.add(next.id)
-      // male left, female right when possible
       const [left, right] = m.gender === 'female' && next.gender !== 'female' ? [next, m] : [m, next]
       units.push({
         key: `${left.id}:${right.id}`,
@@ -91,11 +90,9 @@ function buildUnits(members: FamilyMember[]): CoupleUnit[] {
   return units
 }
 
-// ── SVG rect helper ───────────────────────────────────────────
 interface Rect { x: number; y: number; top: number; bottom: number; w: number; h: number }
 
-// ── main component ────────────────────────────────────────────
-export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
+export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
   const [selected, setSelected] = useState<FamilyMember | null>(null)
   const innerRef  = useRef<HTMLDivElement>(null)
   const cardRefs  = useRef<Record<string, HTMLDivElement>>({})
@@ -160,7 +157,7 @@ export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
     const els: React.ReactNode[] = []
     const drawnSpouses = new Set<string>()
 
-    // ── 1. Spouse lines (horizontal near top of cards) ────────
+    // 1. Couple lines — gold dashed with endpoint dots
     members.forEach(m => {
       parseSpouseIds(m.spouseIds).forEach(sid => {
         const key = [m.id, sid].sort().join('|')
@@ -170,24 +167,24 @@ export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
         const r2 = getRect(sid)
         if (!r1 || !r2) return
 
-        // line at top-quarter of the shorter card
-        const lineY = Math.min(r1.top, r2.top) + Math.min(r1.h, r2.h) * 0.22
-        const mx    = (r1.x + r2.x) / 2
+        const lineY = Math.min(r1.top, r2.top) + 5
+        const left  = r1.x < r2.x ? r1 : r2
+        const right = r1.x < r2.x ? r2 : r1
 
         els.push(
           <g key={`sp-${key}`}>
             <line
-              x1={r1.x} y1={lineY} x2={r2.x} y2={lineY}
-              stroke="#c9a84c" strokeWidth="2" strokeDasharray="6 3" opacity="0.7"
+              x1={left.x} y1={lineY} x2={right.x} y2={lineY}
+              stroke="#c9a84c" strokeWidth="2" strokeDasharray="5 3" opacity="0.85"
             />
-            <text x={mx} y={lineY - 3} textAnchor="middle" fontSize="9" fill="#c9a84c" opacity="0.85">♥</text>
+            <circle cx={left.x}  cy={lineY} r="3.5" fill="#c9a84c" opacity="0.9" />
+            <circle cx={right.x} cy={lineY} r="3.5" fill="#c9a84c" opacity="0.9" />
           </g>
         )
       })
     })
 
-    // ── 2. Parent → child lines ────────────────────────────────
-    // Group children by (fatherId, motherId) key
+    // 2. Parent → child connector lines
     const coupleKids: Record<string, FamilyMember[]> = {}
     members.forEach(child => {
       if (!child.fatherId && !child.motherId) return
@@ -196,7 +193,6 @@ export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
       coupleKids[key].push(child)
     })
 
-    // Find couple unit key for a fatherId+motherId pair
     const findUnitKey = (fid: string | null, mid: string | null): string | null => {
       for (const gen of Object.values(unitsByGen)) {
         for (const u of gen) {
@@ -214,7 +210,6 @@ export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
       const mp = mid ? getRect(mid) : null
       if (!fp && !mp) return
 
-      // Parent centre-X and bottom-Y (use unit bottom to account for + button)
       let parentX: number, parentBottom: number
       if (fp && mp) {
         parentX      = (fp.x + mp.x) / 2
@@ -224,7 +219,6 @@ export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
         parentX = p.x; parentBottom = p.bottom
       }
 
-      // Use unit wrapper bottom (includes + button) if available
       const uKey = findUnitKey(fid || null, mid || null)
       const uBottom = uKey ? getUnitBottom(uKey) : null
       if (uBottom && uBottom > parentBottom) parentBottom = uBottom
@@ -233,27 +227,33 @@ export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
       if (!childRects.length) return
 
       const minChildTop = Math.min(...childRects.map(c => c.top))
-      const gap         = minChildTop - parentBottom
-      const jY          = parentBottom + Math.max(gap * 0.5, 16)
+      const gap = minChildTop - parentBottom
+      const jY  = parentBottom + Math.max(gap * 0.5, 16)
 
-      // Vertical down from parents
-      els.push(<line key={`pd-${key}`} x1={parentX} y1={parentBottom} x2={parentX} y2={jY} stroke="#333" strokeWidth="1.5" />)
+      els.push(
+        <line key={`pd-${key}`}
+          x1={parentX} y1={parentBottom} x2={parentX} y2={jY}
+          className="family-tree-line"
+        />
+      )
 
-      // Horizontal bar if multiple children
       if (childRects.length > 1) {
         const xs = childRects.map(c => c.x)
-        els.push(<line key={`jb-${key}`} x1={Math.min(...xs)} y1={jY} x2={Math.max(...xs)} y2={jY} stroke="#333" strokeWidth="1.5" />)
+        els.push(
+          <line key={`jb-${key}`}
+            x1={Math.min(...xs)} y1={jY} x2={Math.max(...xs)} y2={jY}
+            className="family-tree-line"
+          />
+        )
       }
 
-      // Vertical up to each child top
       kids.forEach((child, i) => {
         const cr = childRects[i]
         if (!cr) return
-        // Small dot at connection point on child top
         els.push(
           <g key={`ct-${child.id}`}>
-            <line x1={cr.x} y1={jY} x2={cr.x} y2={cr.top} stroke="#333" strokeWidth="1.5" />
-            <circle cx={cr.x} cy={cr.top} r="3" fill="#2a2a2a" stroke="#444" strokeWidth="1" />
+            <line x1={cr.x} y1={jY} x2={cr.x} y2={cr.top} className="family-tree-line" />
+            <circle cx={cr.x} cy={cr.top} r="3" className="family-tree-dot" />
           </g>
         )
       })
@@ -275,9 +275,12 @@ export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
   if (!members.length) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="w-20 h-20 rounded-full bg-[#1a1a1a] flex items-center justify-center mb-4 text-3xl">🌳</div>
-        <p className="text-[#666] text-lg">Chưa có thành viên nào</p>
-        <p className="text-[#444] text-sm mt-1">Thêm thành viên trong trang quản trị</p>
+        <div className="w-20 h-20 rounded-full flex items-center justify-center mb-4 text-3xl"
+          style={{ background: 'var(--surface-2)' }}>🌳</div>
+        <p className="text-lg" style={{ color: 'var(--text-3)' }}>Chưa có thành viên nào</p>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-3)', opacity: 0.6 }}>
+          Thêm thành viên trong trang quản trị
+        </p>
       </div>
     )
   }
@@ -286,7 +289,7 @@ export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
     <div className="relative">
       <div className="overflow-x-auto overflow-y-visible pb-8">
         <div ref={innerRef} className="relative min-w-max px-10 pt-6 pb-16">
-          {/* SVG overlay */}
+          {/* SVG connector overlay */}
           <svg
             className="absolute inset-0 pointer-events-none"
             width={svgSize.w || '100%'}
@@ -299,29 +302,30 @@ export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
           {/* Generations */}
           {generations.map(gen => (
             <div key={gen} className="mb-2 relative z-10">
-              {/* Label */}
+              {/* Generation label */}
               <div className="flex items-center gap-3 mb-8">
-                <span className="text-[11px] font-semibold text-[#3a3a3a] uppercase tracking-widest whitespace-nowrap">
+                <span className="text-[11px] font-semibold uppercase tracking-widest whitespace-nowrap"
+                  style={{ color: 'var(--text-3)' }}>
                   Thế hệ {gen}
                 </span>
-                <div className="flex-1 h-px bg-[#1a1a1a]" />
+                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
               </div>
 
-              {/* Couple units row */}
+              {/* Couple units */}
               <div className="flex gap-14 justify-center mb-14 flex-wrap">
                 {unitsByGen[gen]?.map(unit => (
                   <div
                     key={unit.key}
                     ref={el => { if (el) unitRefs.current[unit.key] = el }}
-                    className="flex flex-col items-center gap-0"
+                    className="flex flex-col items-center"
                   >
-                    {/* Cards */}
                     <div className="flex gap-3 items-start">
                       <MemberCard
                         member={unit.primary}
                         isSelected={selected?.id === unit.primary.id}
                         onClick={() => setSelected(selected?.id === unit.primary.id ? null : unit.primary)}
                         cardRef={el => { if (el) cardRefs.current[unit.primary.id] = el }}
+                        onEdit={onEdit}
                       />
                       {unit.spouse && (
                         <MemberCard
@@ -329,11 +333,12 @@ export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
                           isSelected={selected?.id === unit.spouse.id}
                           onClick={() => setSelected(selected?.id === unit.spouse!.id ? null : unit.spouse!)}
                           cardRef={el => { if (el) cardRefs.current[unit.spouse!.id] = el }}
+                          onEdit={onEdit}
                         />
                       )}
                     </div>
 
-                    {/* Quick-add child button */}
+                    {/* Quick-add child (admin only) */}
                     {onAddChild && (
                       <button
                         onClick={() => onAddChild({
@@ -341,7 +346,7 @@ export function FamilyTree({ members, onAddChild }: FamilyTreeProps) {
                           motherId: unit.motherId,
                           generation: unit.primary.generation + 1,
                         })}
-                        className="mt-3 w-7 h-7 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#c9a84c]/50 hover:bg-[#c9a84c]/10 flex items-center justify-center text-[#555] hover:text-[#c9a84c] transition-all"
+                        className="btn-tree-add mt-3 w-7 h-7 rounded-full flex items-center justify-center"
                         title="Thêm con"
                       >
                         <Plus size={13} />
@@ -373,54 +378,72 @@ interface CardProps {
   isSelected: boolean
   onClick: () => void
   cardRef: (el: HTMLDivElement | null) => void
+  onEdit?: (member: FamilyMember) => void
 }
 
-function MemberCard({ member, isSelected, onClick, cardRef }: CardProps) {
+function MemberCard({ member, isSelected, onClick, cardRef, onEdit }: CardProps) {
   const c = gc(member.gender)
   return (
     <div
       ref={cardRef}
       onClick={onClick}
-      className={`w-[108px] rounded-2xl border-2 cursor-pointer transition-all duration-200 text-center select-none overflow-hidden ${
+      className={`w-[110px] rounded-2xl border-2 cursor-pointer transition-all duration-200 text-center select-none overflow-hidden relative group ${
         isSelected ? 'scale-105' : 'hover:-translate-y-1'
       }`}
       style={{
-        backgroundColor: c.bg,
-        borderColor: isSelected ? '#c9a84c' : c.border,
+        backgroundColor: 'var(--surface)',
+        borderColor: isSelected ? 'var(--accent)' : c.border,
         boxShadow: isSelected
-          ? '0 0 0 3px rgba(201,168,76,0.2), 0 8px 24px rgba(0,0,0,0.4)'
-          : '0 2px 12px rgba(0,0,0,0.3)',
+          ? '0 0 0 3px rgba(201,168,76,0.2), 0 8px 20px rgba(0,0,0,0.15)'
+          : '0 2px 8px rgba(0,0,0,0.08)',
       }}
     >
-      {/* Top connector bar */}
-      <div className="h-1 w-full" style={{ backgroundColor: c.border }} />
+      {/* Top color strip */}
+      <div className="h-1.5 w-full" style={{ backgroundColor: c.border }} />
 
-      <div className="p-3 pt-2.5">
+      <div className="px-3 pt-2 pb-5">
         {/* Avatar */}
         <div
           className="w-14 h-14 rounded-full mx-auto mb-2 overflow-hidden border-2 flex items-center justify-center"
-          style={{ borderColor: c.border }}
+          style={{ borderColor: c.border, backgroundColor: c.bg }}
         >
           {member.photoUrl ? (
             <img src={getPhotoUrl(member.photoUrl)} alt={member.name} className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-xl font-bold" style={{ color: c.text, backgroundColor: c.bg }}>
-              {member.name[0]}
-            </div>
+            <User size={22} style={{ color: c.border }} />
           )}
         </div>
 
-        <p className="text-white text-[11px] font-semibold leading-tight line-clamp-2">{member.name}</p>
+        {/* Name */}
+        <p className="text-[11px] font-semibold leading-tight line-clamp-2" style={{ color: 'var(--text-1)' }}>
+          {member.name}
+        </p>
         {member.nickname && (
-          <p className="text-[10px] mt-0.5 opacity-70" style={{ color: c.text }}>({member.nickname})</p>
+          <p className="text-[10px] mt-0.5" style={{ color: c.border, opacity: 0.8 }}>
+            ({member.nickname})
+          </p>
         )}
+
+        {/* Dates */}
         {(member.birthDate || member.deathDate) && (
-          <p className="text-[9px] text-[#555] mt-1.5 leading-tight">
-            {member.birthDate ? (member.isLunarBirth ? '🌙' : '') + member.birthDate : '?'}
-            {member.deathDate ? ` – ${member.deathDate}` : ''}
+          <p className="text-[9px] mt-1.5 leading-tight" style={{ color: 'var(--text-3)' }}>
+            {member.birthDate ? (member.isLunarBirth ? '🌙 ' : '') + member.birthDate : '?'}
+            {member.deathDate ? ` – ${member.isLunarDeath ? '🌙 ' : ''}${member.deathDate}` : ''}
           </p>
         )}
       </div>
+
+      {/* Edit button (admin only) */}
+      {onEdit && (
+        <button
+          onClick={e => { e.stopPropagation(); onEdit(member) }}
+          className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+          style={{ color: 'var(--text-3)' }}
+          title="Chỉnh sửa"
+        >
+          <Pencil size={10} />
+        </button>
+      )}
     </div>
   )
 }
@@ -445,29 +468,36 @@ function MemberDetailPanel({ member, memberMap, onClose, onSelect }: DetailProps
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-[#111] border border-[#1a1a1a] rounded-2xl w-full max-w-sm shadow-modal animate-slide-up overflow-hidden">
-        <div className="h-1 w-full" style={{ backgroundColor: c.border }} />
-        <div className="relative p-5 pb-4 border-b border-[#1a1a1a]">
+      <div className="rounded-2xl w-full max-w-sm shadow-lg animate-slide-up overflow-hidden"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <div className="h-1.5 w-full" style={{ backgroundColor: c.border }} />
+
+        {/* Header */}
+        <div className="relative p-5 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 w-7 h-7 rounded-lg bg-[#1a1a1a] flex items-center justify-center text-[#666] hover:text-white transition-colors"
+            className="absolute top-4 right-4 w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+            style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}
           >
             <X size={14} />
           </button>
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full overflow-hidden border-2 flex-shrink-0" style={{ borderColor: c.border }}>
+            <div className="w-16 h-16 rounded-full overflow-hidden border-2 flex-shrink-0 flex items-center justify-center"
+              style={{ borderColor: c.border, backgroundColor: c.bg }}>
               {member.photoUrl ? (
                 <img src={getPhotoUrl(member.photoUrl)} alt={member.name} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-2xl font-bold" style={{ color: c.text, backgroundColor: c.bg }}>
-                  {member.name[0]}
-                </div>
+                <User size={28} style={{ color: c.border }} />
               )}
             </div>
             <div>
-              <h3 className="font-bold text-white text-lg leading-tight">{member.name}</h3>
-              {member.nickname && <p className="text-sm mt-0.5" style={{ color: c.text }}>"{member.nickname}"</p>}
-              <p className="text-xs text-[#555] mt-1">
+              <h3 className="font-bold text-lg leading-tight" style={{ color: 'var(--text-1)' }}>
+                {member.name}
+              </h3>
+              {member.nickname && (
+                <p className="text-sm mt-0.5" style={{ color: c.border }}>"{member.nickname}"</p>
+              )}
+              <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
                 {member.gender === 'male' ? '👨 Nam' : member.gender === 'female' ? '👩 Nữ' : '🧑 Khác'}
                 {' · Thế hệ '}{member.generation}
               </p>
@@ -475,19 +505,24 @@ function MemberDetailPanel({ member, memberMap, onClose, onSelect }: DetailProps
           </div>
         </div>
 
+        {/* Body */}
         <div className="p-5 space-y-4">
           {(member.birthDate || member.deathDate) && (
             <div className="flex gap-4 flex-wrap">
               {member.birthDate && (
                 <div className="flex items-center gap-2 text-sm">
-                  <Calendar size={14} className="text-[#52a852]" />
-                  <span className="text-[#a0a0a0]">{member.isLunarBirth ? '🌙 ' : ''}{member.birthDate}</span>
+                  <Calendar size={14} color="#52a852" />
+                  <span style={{ color: 'var(--text-2)' }}>
+                    {member.isLunarBirth ? '🌙 ' : ''}{member.birthDate}
+                  </span>
                 </div>
               )}
               {member.deathDate && (
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="text-[#e05252]">†</span>
-                  <span className="text-[#a0a0a0]">{member.isLunarDeath ? '🌙 ' : ''}{member.deathDate}</span>
+                  <span style={{ color: 'var(--danger)' }}>†</span>
+                  <span style={{ color: 'var(--text-2)' }}>
+                    {member.isLunarDeath ? '🌙 ' : ''}{member.deathDate}
+                  </span>
                 </div>
               )}
             </div>
@@ -495,24 +530,27 @@ function MemberDetailPanel({ member, memberMap, onClose, onSelect }: DetailProps
 
           {member.bio && (
             <div className="flex items-start gap-2">
-              <Info size={14} className="text-[#555] mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-[#888] leading-relaxed">{member.bio}</p>
+              <Info size={14} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--text-3)' }} />
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-2)' }}>{member.bio}</p>
             </div>
           )}
 
           {(father || mother || spouses.length > 0 || children.length > 0) && (
-            <div className="space-y-3 pt-2 border-t border-[#1a1a1a]">
-              <p className="text-xs font-semibold text-[#444] uppercase tracking-wider">Quan hệ</p>
+            <div className="space-y-3 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-3)' }}>
+                Quan hệ
+              </p>
 
               {(father || mother) && (
                 <div>
-                  <p className="text-xs text-[#555] mb-1.5">Cha mẹ</p>
+                  <p className="text-xs mb-1.5" style={{ color: 'var(--text-3)' }}>Cha mẹ</p>
                   <div className="flex gap-2 flex-wrap">
                     {[father, mother].filter(Boolean).map(p => p && (
                       <button key={p.id} onClick={() => onSelect(p)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1a1a1a] hover:bg-[#222] border border-[#2a2a2a] hover:border-[#c9a84c]/30 transition-all">
-                        <User size={11} className="text-[#555]" />
-                        <span className="text-xs text-white">{p.name}</span>
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all"
+                        style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                        <User size={11} style={{ color: 'var(--text-3)' }} />
+                        <span className="text-xs" style={{ color: 'var(--text-1)' }}>{p.name}</span>
                       </button>
                     ))}
                   </div>
@@ -521,13 +559,14 @@ function MemberDetailPanel({ member, memberMap, onClose, onSelect }: DetailProps
 
               {spouses.length > 0 && (
                 <div>
-                  <p className="text-xs text-[#555] mb-1.5">Vợ / Chồng</p>
+                  <p className="text-xs mb-1.5" style={{ color: 'var(--text-3)' }}>Vợ / Chồng</p>
                   <div className="flex flex-wrap gap-2">
                     {spouses.map(s => (
                       <button key={s.id} onClick={() => onSelect(s)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#c9a84c]/10 hover:bg-[#c9a84c]/20 border border-[#c9a84c]/20 hover:border-[#c9a84c]/40 transition-all">
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all"
+                        style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-bd)' }}>
                         <span className="text-[10px]">❤️</span>
-                        <span className="text-xs text-white">{s.name}</span>
+                        <span className="text-xs" style={{ color: 'var(--text-1)' }}>{s.name}</span>
                       </button>
                     ))}
                   </div>
@@ -536,13 +575,16 @@ function MemberDetailPanel({ member, memberMap, onClose, onSelect }: DetailProps
 
               {children.length > 0 && (
                 <div>
-                  <p className="text-xs text-[#555] mb-1.5">Con cái ({children.length})</p>
+                  <p className="text-xs mb-1.5" style={{ color: 'var(--text-3)' }}>
+                    Con cái ({children.length})
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {children.map(ch => (
                       <button key={ch.id} onClick={() => onSelect(ch)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1a1a1a] hover:bg-[#222] border border-[#2a2a2a] hover:border-[#c9a84c]/30 transition-all">
-                        <User size={11} className="text-[#555]" />
-                        <span className="text-xs text-white">{ch.name}</span>
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all"
+                        style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                        <User size={11} style={{ color: 'var(--text-3)' }} />
+                        <span className="text-xs" style={{ color: 'var(--text-1)' }}>{ch.name}</span>
                       </button>
                     ))}
                   </div>

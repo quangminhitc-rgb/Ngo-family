@@ -1,9 +1,5 @@
 'use client'
 
-/**
- * Trang Cây Gia Phả - Public
- */
-
 import { useState, useEffect } from 'react'
 import { Navbar } from '@/components/ui/Navbar'
 import { FamilyTree, type FamilyMember } from '@/components/family/FamilyTree'
@@ -22,17 +18,18 @@ export default function FamilyPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f]">
+    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       <Navbar />
       <main className="pt-24 pb-16 px-4 max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-10 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#7c7ccc]/30 bg-[#7c7ccc]/10 text-[#7c7ccc] text-sm font-medium mb-4">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium mb-4"
+            style={{ border: '1px solid rgba(124,124,204,0.3)', background: 'rgba(124,124,204,0.1)', color: '#7c7ccc' }}>
             <GitBranch size={14} />
             Cây gia phả
           </div>
-          <h1 className="text-4xl font-bold text-white">Cây Gia Phả</h1>
-          <p className="text-[#666] mt-3 max-w-md mx-auto">
+          <h1 className="text-4xl font-bold" style={{ color: 'var(--text-1)' }}>Cây Gia Phả</h1>
+          <p className="mt-3 max-w-md mx-auto" style={{ color: 'var(--text-3)' }}>
             Kết nối các thế hệ, lưu giữ nguồn cội gia đình
           </p>
         </div>
@@ -48,29 +45,30 @@ export default function FamilyPage() {
             ))}
           </div>
         ) : (
-          <div className="bg-[#0a0a0a] rounded-2xl border border-[#1a1a1a] p-6 min-h-[400px]">
+          <div className="rounded-2xl p-6 min-h-[400px]"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
             <FamilyTree members={members} />
           </div>
         )}
 
         {/* Legend */}
         {!loading && members.length > 0 && (
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-6 text-xs text-[#555]">
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-6 text-xs" style={{ color: 'var(--text-3)' }}>
             <span className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-[#3a6ea8]" />
+              <div className="w-3 h-3 rounded-full bg-[#3b82f6]" />
               Nam
             </span>
             <span className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-[#a83a8c]" />
+              <div className="w-3 h-3 rounded-full bg-[#ec4899]" />
               Nữ
             </span>
             <span className="flex items-center gap-2">
-              <div className="w-8 h-px bg-[#c9a84c50]" />
+              <div className="w-8 h-0.5 rounded bg-[#c9a84c] opacity-70" />
               Vợ/Chồng
             </span>
             <span className="flex items-center gap-2">
-              <div className="w-px h-4 bg-[#2a2a2a]" />
-              Cha mẹ - Con cái
+              <div className="w-px h-4" style={{ background: 'var(--border-2)' }} />
+              Cha mẹ – Con cái
             </span>
             <span>Nhấn vào thành viên để xem chi tiết</span>
           </div>

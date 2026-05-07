@@ -96,3 +96,18 @@ body {
 /* ── [color-scheme] inputs in light mode ── */
 html:not(.dark) input[type="date"],
 html:not(.dark) input[type="time"] { color-scheme: light; }
+
+/* ── Family tree ── */
+.family-tree-line { stroke: var(--border-2); stroke-width: 1.5; fill: none; }
+.family-tree-dot  { fill: var(--surface-2); stroke: var(--border-2); stroke-width: 1; }
+.btn-tree-add {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  transition: all 0.15s;
+}
+.btn-tree-add:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent-bd);
+  color: var(--accent);
+}
