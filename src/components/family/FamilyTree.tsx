@@ -96,7 +96,6 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
   const [selected, setSelected]   = useState<FamilyMember | null>(null)
   const innerRef  = useRef<HTMLDivElement>(null)
   const cardRefs  = useRef<Record<string, HTMLDivElement>>({})
-  const unitRefs  = useRef<Record<string, HTMLDivElement>>({})
   const [svgEls, setSvgEls]   = useState<React.ReactNode[]>([])
   const [svgSize, setSvgSize] = useState({ w: 0, h: 0 })
 
@@ -141,13 +140,6 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
     }
   }, [])
 
-  const getUnitBottom = useCallback((key: string): number | null => {
-    const inner = innerRef.current
-    const el = unitRefs.current[key]
-    if (!inner || !el) return null
-    const iR = inner.getBoundingClientRect()
-    return el.getBoundingClientRect().bottom - iR.top
-  }, [])
 
   const calcLines = useCallback(() => {
     const inner = innerRef.current
@@ -157,7 +149,25 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
     const els: React.ReactNode[] = []
     const drawnSpouses = new Set<string>()
 
-    // ── 1. Couple connector — horizontal line in the gap between the two cards ──
+    // ── Build parent→kids map ────────────────────────────────────
+    const coupleKids: Record<string, FamilyMember[]> = {}
+    members.forEach(child => {
+      if (!child.fatherId && !child.motherId) return
+      const key = `${child.fatherId ?? ''}_${child.motherId ?? ''}`
+      if (!coupleKids[key]) coupleKids[key] = []
+      coupleKids[key].push(child)
+    })
+
+    // ── Bottom-up: derive each parent's effective midX from children ──
+    // parentMidX[coupleKey] = (leftmost child centerX + rightmost child centerX) / 2
+    const parentMidX: Record<string, number> = {}
+    Object.entries(coupleKids).forEach(([key, kids]) => {
+      const xs = kids.map(c => getRect(c.id)?.x).filter((x): x is number => x !== undefined)
+      if (!xs.length) return
+      parentMidX[key] = (Math.min(...xs) + Math.max(...xs)) / 2
+    })
+
+    // ── 1. Couple line: horizontal at top-of-cards - 20px ───────
     members.forEach(m => {
       parseSpouseIds(m.spouseIds).forEach(sid => {
         const pairKey = [m.id, sid].sort().join('|')
@@ -168,41 +178,17 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
         const r2 = getRect(sid)
         if (!r1 || !r2) return
 
-        const left  = r1.x < r2.x ? r1 : r2
-        const right = r1.x < r2.x ? r2 : r1
-        const connY = (left.y + right.y) / 2
-        const x1    = left.x  + left.w  / 2
-        const x2    = right.x - right.w / 2
-
+        const coupleY = Math.min(r1.top, r2.top) - 20
         els.push(
           <line key={`sp-${pairKey}`}
-            x1={x1} y1={connY} x2={x2} y2={connY}
+            x1={r1.x} y1={coupleY} x2={r2.x} y2={coupleY}
             stroke="#9ca3af" strokeWidth="2"
           />
         )
       })
     })
 
-    // ── 2. Parent → child connector lines ───────────────────────
-    const coupleKids: Record<string, FamilyMember[]> = {}
-    members.forEach(child => {
-      if (!child.fatherId && !child.motherId) return
-      const key = `${child.fatherId ?? ''}_${child.motherId ?? ''}`
-      if (!coupleKids[key]) coupleKids[key] = []
-      coupleKids[key].push(child)
-    })
-
-    const findUnitKey = (fid: string | null, mid: string | null): string | null => {
-      for (const gen of Object.values(unitsByGen)) {
-        for (const u of gen) {
-          if (u.fatherId === fid && u.motherId === mid) return u.key
-          if (u.fatherId === fid && mid === null) return u.key
-          if (u.motherId === mid && fid === null) return u.key
-        }
-      }
-      return null
-    }
-
+    // ── 2. Parent → child connectors ────────────────────────────
     Object.entries(coupleKids).forEach(([key, kids]) => {
       const [fid, mid_str] = key.split('_')
       const mid = mid_str || null
@@ -210,36 +196,25 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
       const mp = mid ? getRect(mid) : null
       if (!fp && !mp) return
 
-      let parentX: number
-      let cardBottom: number
+      const bottomY = Math.max(fp?.bottom ?? 0, mp?.bottom ?? 0)
+      const jY      = bottomY + 60
 
-      if (fp && mp) {
-        parentX    = (fp.x + mp.x) / 2
-        cardBottom = Math.max(fp.bottom, mp.bottom)
-      } else {
-        const p    = fp ?? mp!
-        parentX    = p.x
-        cardBottom = p.bottom
-      }
-
-      const uKey = findUnitKey(fid || null, mid || null)
-      const uBottom = uKey ? getUnitBottom(uKey) : null
-      const effectiveBottom = Math.max(cardBottom, uBottom ?? 0)
+      // Use bottom-up midX (derived from children positions)
+      const midX = parentMidX[key]
+        ?? (fp && mp ? (fp.x + mp.x) / 2 : (fp ?? mp!).x)
 
       const childRects = kids.map(c => getRect(c.id)).filter(Boolean) as Rect[]
       if (!childRects.length) return
 
-      const minChildTop = Math.min(...childRects.map(c => c.top))
-      const gap = minChildTop - effectiveBottom
-      const jY  = effectiveBottom + Math.max(gap * 0.5, 16)
-
+      // Vertical: parent bottom → junction
       els.push(
         <line key={`pd-${key}`}
-          x1={parentX} y1={effectiveBottom} x2={parentX} y2={jY}
+          x1={midX} y1={bottomY} x2={midX} y2={jY}
           className="family-tree-line"
         />
       )
 
+      // Horizontal branch across all children at jY
       if (childRects.length > 1) {
         const xs = childRects.map(c => c.x)
         els.push(
@@ -250,6 +225,7 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
         )
       }
 
+      // Vertical drops from branch to each child top
       kids.forEach((child, i) => {
         const cr = childRects[i]
         if (!cr) return
@@ -263,7 +239,7 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
     })
 
     setSvgEls(els)
-  }, [members, getRect, getUnitBottom, unitsByGen])
+  }, [members, getRect])
 
   useEffect(() => {
     const t = setTimeout(calcLines, 80)
@@ -312,7 +288,6 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
                 {unitsByGen[gen]?.map(unit => (
                   <div
                     key={unit.key}
-                    ref={el => { if (el) unitRefs.current[unit.key] = el }}
                     className="flex flex-col items-center"
                   >
                     {/* Cards — gap-6 so midpoint line passes between them */}
