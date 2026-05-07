@@ -1,70 +1,62 @@
-/**
- * AdminSidebar - Sidebar điều hướng cho trang quản trị
- */
-
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import {
-  LayoutDashboard,
-  Image,
-  Calendar,
-  Users,
-  LogOut,
-  Home,
-  ChevronRight,
-  Shield,
-  GitBranch,
+  LayoutDashboard, Image, Calendar, Users, LogOut,
+  Home, ChevronRight, Shield, GitBranch, Menu, X, Sun, Moon,
 } from 'lucide-react'
+import { useTheme } from '@/lib/theme'
 
 const adminLinks = [
-  { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/photos', label: 'Quản lý ảnh', icon: Image },
-  { href: '/admin/calendar', label: 'Quản lý lịch', icon: Calendar },
-  { href: '/admin/family', label: 'Cây gia phả', icon: GitBranch },
-  { href: '/admin/accounts', label: 'Tài khoản', icon: Users, adminOnly: true },
+  { href: '/admin/dashboard', label: 'Dashboard',    icon: LayoutDashboard },
+  { href: '/admin/photos',    label: 'Quản lý ảnh',  icon: Image },
+  { href: '/admin/calendar',  label: 'Quản lý lịch', icon: Calendar },
+  { href: '/admin/family',    label: 'Cây gia phả',   icon: GitBranch },
+  { href: '/admin/accounts',  label: 'Tài khoản',    icon: Users, adminOnly: true },
 ]
 
 export function AdminSidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
-  const router = useRouter()
+  const { theme, toggle } = useTheme()
+  const [mobileOpen, setMobileOpen] = useState(false)
 
-  const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/admin/login' })
-  }
+  const handleSignOut = () => signOut({ callbackUrl: '/admin/login' })
 
-  return (
-    <aside className="fixed left-0 top-0 h-full w-64 bg-[#111111] border-r border-[#1a1a1a] flex flex-col z-40">
+  const SidebarContent = () => (
+    <aside className="h-full w-64 bg-[var(--surface)] border-r border-[var(--border)] flex flex-col">
       {/* Header */}
-      <div className="p-6 border-b border-[#1a1a1a]">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#c9a84c]/20 border border-[#c9a84c]/30 flex items-center justify-center">
-            <Shield size={18} className="text-[#c9a84c]" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">Quản trị</p>
-            <p className="text-xs text-[#666]">
-              {process.env.NEXT_PUBLIC_APP_NAME ?? 'Gia Đình Tôi'}
-            </p>
-          </div>
+      <div className="px-5 h-14 flex items-center gap-3 border-b border-[var(--border)]">
+        <div className="w-8 h-8 rounded-xl bg-[var(--accent-bg)] border border-[var(--accent-bd)] flex items-center justify-center flex-shrink-0">
+          <Shield size={16} className="text-[var(--accent)]" />
         </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-[var(--text-1)] truncate">Quản trị</p>
+          <p className="text-xs text-[var(--text-3)] truncate">
+            {process.env.NEXT_PUBLIC_APP_NAME ?? 'Gia Đình Tôi'}
+          </p>
+        </div>
+        {/* Close button - mobile only */}
+        <button onClick={() => setMobileOpen(false)}
+          className="lg:hidden ml-auto w-7 h-7 flex items-center justify-center rounded-lg text-[var(--text-3)] hover:text-[var(--text-1)] hover:bg-[var(--surface-2)] transition-all"
+        >
+          <X size={15} />
+        </button>
       </div>
 
       {/* User info */}
       {session && (
-        <div className="px-4 py-3 mx-3 mt-4 rounded-xl bg-[#1a1a1a] border border-[#222]">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-[#c9a84c]/20 flex items-center justify-center text-[#c9a84c] text-sm font-semibold">
+        <div className="mx-3 mt-3 px-3 py-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-[var(--accent-bg)] flex items-center justify-center text-[var(--accent)] text-sm font-semibold flex-shrink-0 border border-[var(--accent-bd)]">
               {session.user.displayName?.[0]?.toUpperCase() ?? 'U'}
             </div>
             <div className="min-w-0">
-              <p className="text-sm text-white font-medium truncate">
-                {session.user.displayName}
-              </p>
-              <p className="text-xs text-[#c9a84c] capitalize">
+              <p className="text-sm text-[var(--text-1)] font-medium truncate">{session.user.displayName}</p>
+              <p className="text-xs text-[var(--accent)]">
                 {session.user.role === 'admin' ? '👑 Admin' : '👤 Member'}
               </p>
             </div>
@@ -72,48 +64,85 @@ export function AdminSidebar() {
         </div>
       )}
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 pt-4 space-y-1 overflow-y-auto">
+      {/* Nav */}
+      <nav className="flex-1 px-3 pt-3 space-y-0.5 overflow-y-auto">
         {adminLinks.map(({ href, label, icon: Icon, adminOnly }) => {
-          // Ẩn link admin-only với member
           if (adminOnly && session?.user.role !== 'admin') return null
-
-          const isActive = pathname === href
+          const active = pathname === href
           return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group ${
-                isActive
-                  ? 'bg-[#c9a84c]/15 text-[#c9a84c] font-medium border border-[#c9a84c]/20'
-                  : 'text-[#a0a0a0] hover:text-white hover:bg-[#1a1a1a]'
+            <Link key={href} href={href} onClick={() => setMobileOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all group ${
+                active
+                  ? 'bg-[var(--accent-bg)] text-[var(--accent)] font-medium border border-[var(--accent-bd)]'
+                  : 'text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--surface-2)]'
               }`}
             >
-              <Icon size={17} className={isActive ? 'text-[#c9a84c]' : ''} />
+              <Icon size={16} />
               <span className="flex-1">{label}</span>
-              {isActive && <ChevronRight size={14} className="text-[#c9a84c]/60" />}
+              {active && <ChevronRight size={13} className="text-[var(--accent)]/60" />}
             </Link>
           )
         })}
       </nav>
 
-      {/* Footer actions */}
-      <div className="p-3 border-t border-[#1a1a1a] space-y-1">
-        <Link
-          href="/"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[#666] hover:text-white hover:bg-[#1a1a1a] transition-all duration-200"
+      {/* Footer */}
+      <div className="px-3 py-3 border-t border-[var(--border)] space-y-0.5">
+        <button onClick={toggle}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--surface-2)] transition-all"
         >
-          <Home size={17} />
-          <span>Về trang chủ</span>
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          {theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
+        </button>
+        <Link href="/" onClick={() => setMobileOpen(false)}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--surface-2)] transition-all"
+        >
+          <Home size={16} />
+          Về trang chủ
         </Link>
-        <button
-          onClick={handleSignOut}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[#e05252]/70 hover:text-[#e05252] hover:bg-[#e05252]/10 transition-all duration-200"
+        <button onClick={handleSignOut}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--danger)]/70 hover:text-[var(--danger)] hover:bg-[var(--danger)]/10 transition-all"
         >
-          <LogOut size={17} />
-          <span>Đăng xuất</span>
+          <LogOut size={16} />
+          Đăng xuất
         </button>
       </div>
     </aside>
+  )
+
+  return (
+    <>
+      {/* Desktop: fixed sidebar */}
+      <div className="hidden lg:block fixed left-0 top-0 h-full z-40">
+        <SidebarContent />
+      </div>
+
+      {/* Mobile: top bar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 z-40 bg-[var(--surface)] border-b border-[var(--border)] flex items-center px-4 gap-3">
+        <button onClick={() => setMobileOpen(true)}
+          className="w-9 h-9 flex items-center justify-center rounded-xl text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--surface-2)] transition-all"
+        >
+          <Menu size={20} />
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-[var(--accent-bg)] border border-[var(--accent-bd)] flex items-center justify-center">
+            <Shield size={13} className="text-[var(--accent)]" />
+          </div>
+          <span className="text-[var(--text-1)] font-semibold text-sm">Quản trị</span>
+        </div>
+        <button onClick={toggle} className="ml-auto w-9 h-9 flex items-center justify-center rounded-xl text-[var(--text-3)] hover:text-[var(--accent)] hover:bg-[var(--surface-2)] transition-all">
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+      </div>
+
+      {/* Mobile: backdrop */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+      )}
+
+      {/* Mobile: slide-in sidebar */}
+      <div className={`lg:hidden fixed top-0 left-0 h-full z-50 transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <SidebarContent />
+      </div>
+    </>
   )
 }
