@@ -11,7 +11,10 @@ import { getPhotoUrl } from '@/lib/utils'
 import type { FamilyMember, AddChildDefaults } from '@/components/family/FamilyTree'
 import dynamic from 'next/dynamic'
 
-const FamilyTree = dynamic(() => import('@/components/family/FamilyTree'), { ssr: false })
+const FamilyTree = dynamic(
+  () => import('@/components/family/FamilyTree').then(m => ({ default: m.FamilyTree })),
+  { ssr: false }
+)
 
 interface MemberForm {
   name: string
