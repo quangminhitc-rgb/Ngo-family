@@ -34,10 +34,10 @@ interface FamilyTreeProps {
   onEdit?: (member: FamilyMember) => void
 }
 
-// Gender accent colors — visible in both light and dark modes
+// ── Gender accent colors ─────────────────────────────────────────
 const GC = {
-  male:   { border: '#3b82f6', bg: 'rgba(59,130,246,0.08)' },
-  female: { border: '#ec4899', bg: 'rgba(236,72,153,0.08)' },
+  male:   { border: '#2196F3', bg: 'rgba(33,150,243,0.08)' },
+  female: { border: '#E91E8C', bg: 'rgba(233,30,140,0.08)' },
   other:  { border: '#8b5cf6', bg: 'rgba(139,92,246,0.08)' },
 }
 function gc(g: string) { return GC[g as keyof typeof GC] ?? GC.other }
@@ -93,7 +93,7 @@ function buildUnits(members: FamilyMember[]): CoupleUnit[] {
 interface Rect { x: number; y: number; top: number; bottom: number; w: number; h: number }
 
 export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
-  const [selected, setSelected] = useState<FamilyMember | null>(null)
+  const [selected, setSelected]   = useState<FamilyMember | null>(null)
   const innerRef  = useRef<HTMLDivElement>(null)
   const cardRefs  = useRef<Record<string, HTMLDivElement>>({})
   const unitRefs  = useRef<Record<string, HTMLDivElement>>({})
@@ -157,34 +157,46 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
     const els: React.ReactNode[] = []
     const drawnSpouses = new Set<string>()
 
-    // 1. Couple lines — gold dashed with endpoint dots
+    // Map couple bars: `id1|id2` → { midX, barY }
+    const barsByCouple: Record<string, { midX: number; barY: number }> = {}
+
+    // ── 1. Draw couple bars ABOVE the cards ─────────────────────
     members.forEach(m => {
       parseSpouseIds(m.spouseIds).forEach(sid => {
-        const key = [m.id, sid].sort().join('|')
-        if (drawnSpouses.has(key)) return
-        drawnSpouses.add(key)
+        const pairKey = [m.id, sid].sort().join('|')
+        if (drawnSpouses.has(pairKey)) return
+        drawnSpouses.add(pairKey)
+
         const r1 = getRect(m.id)
         const r2 = getRect(sid)
         if (!r1 || !r2) return
 
-        const lineY = Math.min(r1.top, r2.top) + 5
         const left  = r1.x < r2.x ? r1 : r2
         const right = r1.x < r2.x ? r2 : r1
+        const BAR_ABOVE = 18
+        const barY  = Math.min(r1.top, r2.top) - BAR_ABOVE
+        const midX  = (left.x + right.x) / 2
+
+        // Store for both orderings so parent-child lookup always finds it
+        barsByCouple[`${m.id}|${sid}`] = { midX, barY }
+        barsByCouple[`${sid}|${m.id}`] = { midX, barY }
 
         els.push(
-          <g key={`sp-${key}`}>
-            <line
-              x1={left.x} y1={lineY} x2={right.x} y2={lineY}
-              stroke="#c9a84c" strokeWidth="2" strokeDasharray="5 3" opacity="0.85"
-            />
-            <circle cx={left.x}  cy={lineY} r="3.5" fill="#c9a84c" opacity="0.9" />
-            <circle cx={right.x} cy={lineY} r="3.5" fill="#c9a84c" opacity="0.9" />
+          <g key={`sp-${pairKey}`}>
+            {/* Horizontal couple bar above cards */}
+            <line x1={left.x} y1={barY} x2={right.x} y2={barY}
+              stroke="#9ca3af" strokeWidth="2.5" />
+            {/* Vertical drops from bar to card tops */}
+            <line x1={left.x} y1={barY} x2={left.x} y2={left.top}
+              stroke="#9ca3af" strokeWidth="2.5" />
+            <line x1={right.x} y1={barY} x2={right.x} y2={right.top}
+              stroke="#9ca3af" strokeWidth="2.5" />
           </g>
         )
       })
     })
 
-    // 2. Parent → child connector lines
+    // ── 2. Parent → child connector lines ───────────────────────
     const coupleKids: Record<string, FamilyMember[]> = {}
     members.forEach(child => {
       if (!child.fatherId && !child.motherId) return
@@ -205,38 +217,57 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
     }
 
     Object.entries(coupleKids).forEach(([key, kids]) => {
-      const [fid, mid] = key.split('_')
+      const [fid, mid_str] = key.split('_')
+      const mid = mid_str || null
       const fp = fid ? getRect(fid) : null
       const mp = mid ? getRect(mid) : null
       if (!fp && !mp) return
 
-      let parentX: number, parentBottom: number
-      if (fp && mp) {
+      // Find couple bar (try both id orderings)
+      const barInfo = barsByCouple[`${fid}|${mid ?? ''}`]
+        || (mid ? barsByCouple[`${mid}|${fid}`] : undefined)
+
+      let parentX: number
+      let parentStartY: number  // Where the vertical connector line STARTS
+      let cardBottom: number    // Bottom of parent cards (for jY calculation)
+
+      if (barInfo) {
+        // Line starts from the couple bar midpoint (above cards)
+        parentX      = barInfo.midX
+        parentStartY = barInfo.barY
+        cardBottom   = Math.max(fp?.bottom ?? 0, mp?.bottom ?? 0)
+      } else if (fp && mp) {
         parentX      = (fp.x + mp.x) / 2
-        parentBottom = Math.max(fp.bottom, mp.bottom)
+        parentStartY = Math.max(fp.bottom, mp.bottom)
+        cardBottom   = parentStartY
       } else {
-        const p = fp ?? mp!
-        parentX = p.x; parentBottom = p.bottom
+        const p    = fp ?? mp!
+        parentX    = p.x
+        parentStartY = p.bottom
+        cardBottom   = parentStartY
       }
 
+      // Factor in unit bottom (includes [+] button)
       const uKey = findUnitKey(fid || null, mid || null)
       const uBottom = uKey ? getUnitBottom(uKey) : null
-      if (uBottom && uBottom > parentBottom) parentBottom = uBottom
+      const effectiveBottom = Math.max(cardBottom, uBottom ?? 0)
 
       const childRects = kids.map(c => getRect(c.id)).filter(Boolean) as Rect[]
       if (!childRects.length) return
 
       const minChildTop = Math.min(...childRects.map(c => c.top))
-      const gap = minChildTop - parentBottom
-      const jY  = parentBottom + Math.max(gap * 0.5, 16)
+      const gap = minChildTop - effectiveBottom
+      const jY  = effectiveBottom + Math.max(gap * 0.5, 16)
 
+      // Vertical line from bar/parent down to junction (right-angle)
       els.push(
         <line key={`pd-${key}`}
-          x1={parentX} y1={parentBottom} x2={parentX} y2={jY}
+          x1={parentX} y1={parentStartY} x2={parentX} y2={jY}
           className="family-tree-line"
         />
       )
 
+      // Horizontal junction bar across children
       if (childRects.length > 1) {
         const xs = childRects.map(c => c.x)
         els.push(
@@ -247,6 +278,7 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
         )
       }
 
+      // Vertical drops to each child card top
       kids.forEach((child, i) => {
         const cr = childRects[i]
         if (!cr) return
@@ -289,6 +321,7 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
     <div className="relative">
       <div className="overflow-x-auto overflow-y-visible pb-8">
         <div ref={innerRef} className="relative min-w-max px-10 pt-6 pb-16">
+
           {/* SVG connector overlay */}
           <svg
             className="absolute inset-0 pointer-events-none"
@@ -302,10 +335,17 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
           {/* Generations */}
           {generations.map(gen => (
             <div key={gen} className="mb-2 relative z-10">
-              {/* Generation label */}
+
+              {/* Generation label — left side */}
               <div className="flex items-center gap-3 mb-8">
-                <span className="text-[11px] font-semibold uppercase tracking-widest whitespace-nowrap"
-                  style={{ color: 'var(--text-3)' }}>
+                <span
+                  className="text-[11px] font-bold uppercase tracking-widest whitespace-nowrap px-2 py-0.5 rounded"
+                  style={{
+                    color: 'var(--text-3)',
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border)',
+                  }}
+                >
                   Thế hệ {gen}
                 </span>
                 <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
@@ -317,9 +357,10 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
                   <div
                     key={unit.key}
                     ref={el => { if (el) unitRefs.current[unit.key] = el }}
-                    className="flex flex-col items-center"
+                    className="flex flex-col items-center pt-7"
                   >
-                    <div className="flex gap-3 items-start">
+                    {/* Cards — gap-6 so midpoint line passes between them */}
+                    <div className="flex gap-6 items-start">
                       <MemberCard
                         member={unit.primary}
                         isSelected={selected?.id === unit.primary.id}
@@ -338,7 +379,7 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
                       )}
                     </div>
 
-                    {/* Quick-add child (admin only) */}
+                    {/* [+] Add child button */}
                     {onAddChild && (
                       <button
                         onClick={() => onAddChild({
@@ -346,7 +387,7 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
                           motherId: unit.motherId,
                           generation: unit.primary.generation + 1,
                         })}
-                        className="btn-tree-add mt-3 w-7 h-7 rounded-full flex items-center justify-center"
+                        className="btn-tree-add mt-4 w-7 h-7 rounded-full flex items-center justify-center"
                         title="Thêm con"
                       >
                         <Plus size={13} />
@@ -372,7 +413,7 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
   )
 }
 
-// ── Member card ───────────────────────────────────────────────
+// ── Member card ───────────────────────────────────────────────────
 interface CardProps {
   member: FamilyMember
   isSelected: boolean
@@ -383,39 +424,41 @@ interface CardProps {
 
 function MemberCard({ member, isSelected, onClick, cardRef, onEdit }: CardProps) {
   const c = gc(member.gender)
+  const roleLabel =
+    member.gender === 'male' ? 'Nam' : member.gender === 'female' ? 'Nữ' : 'Khác'
+
   return (
     <div
       ref={cardRef}
       onClick={onClick}
-      className={`w-[110px] rounded-2xl border-2 cursor-pointer transition-all duration-200 text-center select-none overflow-hidden relative group ${
+      className={`w-[110px] rounded-2xl border-2 cursor-pointer transition-all duration-200 text-center select-none relative group ${
         isSelected ? 'scale-105' : 'hover:-translate-y-1'
       }`}
       style={{
         backgroundColor: 'var(--surface)',
         borderColor: isSelected ? 'var(--accent)' : c.border,
         boxShadow: isSelected
-          ? '0 0 0 3px rgba(201,168,76,0.2), 0 8px 20px rgba(0,0,0,0.15)'
+          ? `0 0 0 3px ${c.border}33, 0 8px 20px rgba(0,0,0,0.15)`
           : '0 2px 8px rgba(0,0,0,0.08)',
       }}
     >
-      {/* Top color strip */}
-      <div className="h-1.5 w-full" style={{ backgroundColor: c.border }} />
-
-      <div className="px-3 pt-2 pb-5">
-        {/* Avatar */}
+      <div className="px-2 pt-3 pb-5">
+        {/* Avatar — round */}
         <div
           className="w-14 h-14 rounded-full mx-auto mb-2 overflow-hidden border-2 flex items-center justify-center"
           style={{ borderColor: c.border, backgroundColor: c.bg }}
         >
           {member.photoUrl ? (
-            <img src={getPhotoUrl(member.photoUrl)} alt={member.name} className="w-full h-full object-cover" />
+            <img src={getPhotoUrl(member.photoUrl)} alt={member.name}
+              className="w-full h-full object-cover" />
           ) : (
             <User size={22} style={{ color: c.border }} />
           )}
         </div>
 
         {/* Name */}
-        <p className="text-[11px] font-semibold leading-tight line-clamp-2" style={{ color: 'var(--text-1)' }}>
+        <p className="text-[11px] font-semibold leading-tight line-clamp-2"
+          style={{ color: 'var(--text-1)' }}>
           {member.name}
         </p>
         {member.nickname && (
@@ -424,20 +467,29 @@ function MemberCard({ member, isSelected, onClick, cardRef, onEdit }: CardProps)
           </p>
         )}
 
+        {/* Role */}
+        <p className="text-[10px] mt-1 font-medium" style={{ color: c.border }}>
+          {roleLabel}
+        </p>
+
         {/* Dates */}
         {(member.birthDate || member.deathDate) && (
           <p className="text-[9px] mt-1.5 leading-tight" style={{ color: 'var(--text-3)' }}>
-            {member.birthDate ? (member.isLunarBirth ? '🌙 ' : '') + member.birthDate : '?'}
-            {member.deathDate ? ` – ${member.isLunarDeath ? '🌙 ' : ''}${member.deathDate}` : ''}
+            {member.birthDate
+              ? (member.isLunarBirth ? '🌙' : '') + member.birthDate
+              : '?'}
+            {member.deathDate
+              ? ` – ${member.isLunarDeath ? '🌙' : ''}${member.deathDate}`
+              : ''}
           </p>
         )}
       </div>
 
-      {/* Edit button (admin only) */}
+      {/* [✏️] Edit button — bottom-right corner */}
       {onEdit && (
         <button
           onClick={e => { e.stopPropagation(); onEdit(member) }}
-          className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
+          className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded flex items-center justify-center transition-opacity opacity-25 hover:opacity-100"
           style={{ color: 'var(--text-3)' }}
           title="Chỉnh sửa"
         >
@@ -448,7 +500,7 @@ function MemberCard({ member, isSelected, onClick, cardRef, onEdit }: CardProps)
   )
 }
 
-// ── Detail panel ──────────────────────────────────────────────
+// ── Detail panel ──────────────────────────────────────────────────
 interface DetailProps {
   member: FamilyMember
   memberMap: Record<string, FamilyMember>
@@ -485,7 +537,8 @@ function MemberDetailPanel({ member, memberMap, onClose, onSelect }: DetailProps
             <div className="w-16 h-16 rounded-full overflow-hidden border-2 flex-shrink-0 flex items-center justify-center"
               style={{ borderColor: c.border, backgroundColor: c.bg }}>
               {member.photoUrl ? (
-                <img src={getPhotoUrl(member.photoUrl)} alt={member.name} className="w-full h-full object-cover" />
+                <img src={getPhotoUrl(member.photoUrl)} alt={member.name}
+                  className="w-full h-full object-cover" />
               ) : (
                 <User size={28} style={{ color: c.border }} />
               )}
