@@ -149,6 +149,29 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
     const els: React.ReactNode[] = []
     const drawnSpouses = new Set<string>()
 
+    // ── Build member → unit drop-info ────────────────────────────
+    // centerX  = midpoint of couple unit (or solo card center)
+    // connectY = Y where a parent line should T-connect to this unit
+    //            = couple line Y (top-20) for couples, card top for singles
+    const memberDropInfo: Record<string, { unitKey: string; centerX: number; connectY: number }> = {}
+    Object.values(unitsByGen).forEach(genUnits => {
+      genUnits.forEach(unit => {
+        const rp = getRect(unit.primary.id)
+        if (!rp) return
+        if (unit.spouse) {
+          const rs = getRect(unit.spouse.id)
+          if (!rs) return
+          const centerX  = (rp.x + rs.x) / 2
+          const connectY = Math.min(rp.top, rs.top) - 20   // top of couple line
+          const info = { unitKey: unit.key, centerX, connectY }
+          memberDropInfo[unit.primary.id] = info
+          memberDropInfo[unit.spouse.id]  = info
+        } else {
+          memberDropInfo[unit.primary.id] = { unitKey: unit.key, centerX: rp.x, connectY: rp.top }
+        }
+      })
+    })
+
     // ── Build parent→kids map ────────────────────────────────────
     const coupleKids: Record<string, FamilyMember[]> = {}
     members.forEach(child => {
@@ -158,16 +181,7 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
       coupleKids[key].push(child)
     })
 
-    // ── Bottom-up: derive each parent's effective midX from children ──
-    // parentMidX[coupleKey] = (leftmost child centerX + rightmost child centerX) / 2
-    const parentMidX: Record<string, number> = {}
-    Object.entries(coupleKids).forEach(([key, kids]) => {
-      const xs = kids.map(c => getRect(c.id)?.x).filter((x): x is number => x !== undefined)
-      if (!xs.length) return
-      parentMidX[key] = (Math.min(...xs) + Math.max(...xs)) / 2
-    })
-
-    // ── 1. Couple line: horizontal at top-of-cards - 20px ───────
+    // ── 1. Couple line: horizontal at top-20 connecting both cards ──
     members.forEach(m => {
       parseSpouseIds(m.spouseIds).forEach(sid => {
         const pairKey = [m.id, sid].sort().join('|')
@@ -199,24 +213,31 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
       const bottomY = Math.max(fp?.bottom ?? 0, mp?.bottom ?? 0)
       const jY      = bottomY + 60
 
-      // Use bottom-up midX (derived from children positions)
-      const midX = parentMidX[key]
-        ?? (fp && mp ? (fp.x + mp.x) / 2 : (fp ?? mp!).x)
+      // Collect one drop per child UNIT (deduplicated by unitKey)
+      const seenUnits = new Set<string>()
+      const drops: { centerX: number; connectY: number }[] = []
+      kids.forEach(child => {
+        const info = memberDropInfo[child.id]
+        if (!info || seenUnits.has(info.unitKey)) return
+        seenUnits.add(info.unitKey)
+        drops.push({ centerX: info.centerX, connectY: info.connectY })
+      })
+      if (!drops.length) return
 
-      const childRects = kids.map(c => getRect(c.id)).filter(Boolean) as Rect[]
-      if (!childRects.length) return
+      // Bottom-up: parent midX = center of leftmost and rightmost child unit
+      const xs = drops.map(d => d.centerX)
+      const parentMidX = (Math.min(...xs) + Math.max(...xs)) / 2
 
-      // Vertical: parent bottom → junction
+      // Vertical: parent bottom → junction Y
       els.push(
         <line key={`pd-${key}`}
-          x1={midX} y1={bottomY} x2={midX} y2={jY}
+          x1={parentMidX} y1={bottomY} x2={parentMidX} y2={jY}
           className="family-tree-line"
         />
       )
 
-      // Horizontal branch across all children at jY
-      if (childRects.length > 1) {
-        const xs = childRects.map(c => c.x)
+      // Horizontal branch at jY across all child unit centers
+      if (drops.length > 1) {
         els.push(
           <line key={`jb-${key}`}
             x1={Math.min(...xs)} y1={jY} x2={Math.max(...xs)} y2={jY}
@@ -225,21 +246,20 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
         )
       }
 
-      // Vertical drops from branch to each child top
-      kids.forEach((child, i) => {
-        const cr = childRects[i]
-        if (!cr) return
+      // Vertical drops → T-junction at each child unit's couple line (or card top)
+      drops.forEach((drop, i) => {
         els.push(
-          <g key={`ct-${child.id}`}>
-            <line x1={cr.x} y1={jY} x2={cr.x} y2={cr.top} className="family-tree-line" />
-            <circle cx={cr.x} cy={cr.top} r="3" className="family-tree-dot" />
+          <g key={`ct-${key}-${i}`}>
+            <line x1={drop.centerX} y1={jY} x2={drop.centerX} y2={drop.connectY}
+              className="family-tree-line" />
+            <circle cx={drop.centerX} cy={drop.connectY} r="3" className="family-tree-dot" />
           </g>
         )
       })
     })
 
     setSvgEls(els)
-  }, [members, getRect])
+  }, [members, getRect, unitsByGen])
 
   useEffect(() => {
     const t = setTimeout(calcLines, 80)
