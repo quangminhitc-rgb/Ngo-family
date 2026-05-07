@@ -59,17 +59,16 @@ function buildUnits(members: FamilyMember[]): CoupleUnit[] {
   const placed = new Set<string>()
   const units: CoupleUnit[] = []
 
-  for (let i = 0; i < sorted.length; i++) {
-    const m = sorted[i]
+  for (const m of sorted) {
     if (placed.has(m.id)) continue
     placed.add(m.id)
 
-    const next = sorted[i + 1]
-    const coupled = next && !placed.has(next.id) && parseSpouseIds(m.spouseIds).includes(next.id)
+    const spouseIds = parseSpouseIds(m.spouseIds)
+    const spouse = sorted.find(s => !placed.has(s.id) && spouseIds.includes(s.id))
 
-    if (coupled) {
-      placed.add(next.id)
-      const [left, right] = m.gender === 'female' && next.gender !== 'female' ? [next, m] : [m, next]
+    if (spouse) {
+      placed.add(spouse.id)
+      const [left, right] = m.gender === 'female' && spouse.gender !== 'female' ? [spouse, m] : [m, spouse]
       units.push({
         key: `${left.id}:${right.id}`,
         primary: left,
@@ -224,23 +223,25 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
       })
       if (!drops.length) return
 
-      // Bottom-up: parent midX = center of leftmost and rightmost child unit
       const xs = drops.map(d => d.centerX)
-      const parentMidX = (Math.min(...xs) + Math.max(...xs)) / 2
+      // Parent vertical starts from couple's own midX, not bottom-up children center
+      const coupleMidX = fp && mp ? (fp.x + mp.x) / 2 : fp ? fp.x : mp!.x
 
-      // Vertical: parent bottom → junction Y
+      // Vertical: parent couple center → junction Y
       els.push(
         <line key={`pd-${key}`}
-          x1={parentMidX} y1={bottomY} x2={parentMidX} y2={jY}
+          x1={coupleMidX} y1={bottomY} x2={coupleMidX} y2={jY}
           className="family-tree-line"
         />
       )
 
-      // Horizontal branch at jY across all child unit centers
-      if (drops.length > 1) {
+      // Horizontal branch at jY — span child unit centers and always include coupleMidX
+      const branchX1 = Math.min(...xs, coupleMidX)
+      const branchX2 = Math.max(...xs, coupleMidX)
+      if (branchX1 < branchX2) {
         els.push(
           <line key={`jb-${key}`}
-            x1={Math.min(...xs)} y1={jY} x2={Math.max(...xs)} y2={jY}
+            x1={branchX1} y1={jY} x2={branchX2} y2={jY}
             className="family-tree-line"
           />
         )
