@@ -157,10 +157,7 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
     const els: React.ReactNode[] = []
     const drawnSpouses = new Set<string>()
 
-    // Map couple bars: `id1|id2` → { midX, barY }
-    const barsByCouple: Record<string, { midX: number; barY: number }> = {}
-
-    // ── 1. Draw couple bars ABOVE the cards ─────────────────────
+    // ── 1. Couple connector — horizontal line in the gap between the two cards ──
     members.forEach(m => {
       parseSpouseIds(m.spouseIds).forEach(sid => {
         const pairKey = [m.id, sid].sort().join('|')
@@ -173,25 +170,15 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
 
         const left  = r1.x < r2.x ? r1 : r2
         const right = r1.x < r2.x ? r2 : r1
-        const BAR_ABOVE = 18
-        const barY  = Math.min(r1.top, r2.top) - BAR_ABOVE
-        const midX  = (left.x + right.x) / 2
-
-        // Store for both orderings so parent-child lookup always finds it
-        barsByCouple[`${m.id}|${sid}`] = { midX, barY }
-        barsByCouple[`${sid}|${m.id}`] = { midX, barY }
+        const connY = (left.y + right.y) / 2
+        const x1    = left.x  + left.w  / 2
+        const x2    = right.x - right.w / 2
 
         els.push(
-          <g key={`sp-${pairKey}`}>
-            {/* Horizontal couple bar above cards */}
-            <line x1={left.x} y1={barY} x2={right.x} y2={barY}
-              stroke="#9ca3af" strokeWidth="2.5" />
-            {/* Vertical drops from bar to card tops */}
-            <line x1={left.x} y1={barY} x2={left.x} y2={left.top}
-              stroke="#9ca3af" strokeWidth="2.5" />
-            <line x1={right.x} y1={barY} x2={right.x} y2={right.top}
-              stroke="#9ca3af" strokeWidth="2.5" />
-          </g>
+          <line key={`sp-${pairKey}`}
+            x1={x1} y1={connY} x2={x2} y2={connY}
+            stroke="#9ca3af" strokeWidth="2"
+          />
         )
       })
     })
@@ -223,31 +210,18 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
       const mp = mid ? getRect(mid) : null
       if (!fp && !mp) return
 
-      // Find couple bar (try both id orderings)
-      const barInfo = barsByCouple[`${fid}|${mid ?? ''}`]
-        || (mid ? barsByCouple[`${mid}|${fid}`] : undefined)
-
       let parentX: number
-      let parentStartY: number  // Where the vertical connector line STARTS
-      let cardBottom: number    // Bottom of parent cards (for jY calculation)
+      let cardBottom: number
 
-      if (barInfo) {
-        // Line starts from the couple bar midpoint (above cards)
-        parentX      = barInfo.midX
-        parentStartY = barInfo.barY
-        cardBottom   = Math.max(fp?.bottom ?? 0, mp?.bottom ?? 0)
-      } else if (fp && mp) {
-        parentX      = (fp.x + mp.x) / 2
-        parentStartY = Math.max(fp.bottom, mp.bottom)
-        cardBottom   = parentStartY
+      if (fp && mp) {
+        parentX    = (fp.x + mp.x) / 2
+        cardBottom = Math.max(fp.bottom, mp.bottom)
       } else {
         const p    = fp ?? mp!
         parentX    = p.x
-        parentStartY = p.bottom
-        cardBottom   = parentStartY
+        cardBottom = p.bottom
       }
 
-      // Factor in unit bottom (includes [+] button)
       const uKey = findUnitKey(fid || null, mid || null)
       const uBottom = uKey ? getUnitBottom(uKey) : null
       const effectiveBottom = Math.max(cardBottom, uBottom ?? 0)
@@ -259,15 +233,13 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
       const gap = minChildTop - effectiveBottom
       const jY  = effectiveBottom + Math.max(gap * 0.5, 16)
 
-      // Vertical line from bar/parent down to junction (right-angle)
       els.push(
         <line key={`pd-${key}`}
-          x1={parentX} y1={parentStartY} x2={parentX} y2={jY}
+          x1={parentX} y1={effectiveBottom} x2={parentX} y2={jY}
           className="family-tree-line"
         />
       )
 
-      // Horizontal junction bar across children
       if (childRects.length > 1) {
         const xs = childRects.map(c => c.x)
         els.push(
@@ -278,7 +250,6 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
         )
       }
 
-      // Vertical drops to each child card top
       kids.forEach((child, i) => {
         const cr = childRects[i]
         if (!cr) return
@@ -336,28 +307,13 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
           {generations.map(gen => (
             <div key={gen} className="mb-2 relative z-10">
 
-              {/* Generation label — left side */}
-              <div className="flex items-center gap-3 mb-8">
-                <span
-                  className="text-[11px] font-bold uppercase tracking-widest whitespace-nowrap px-2 py-0.5 rounded"
-                  style={{
-                    color: 'var(--text-3)',
-                    background: 'var(--surface-2)',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  Thế hệ {gen}
-                </span>
-                <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
-              </div>
-
               {/* Couple units */}
               <div className="flex gap-14 justify-center mb-14 flex-wrap">
                 {unitsByGen[gen]?.map(unit => (
                   <div
                     key={unit.key}
                     ref={el => { if (el) unitRefs.current[unit.key] = el }}
-                    className="flex flex-col items-center pt-7"
+                    className="flex flex-col items-center"
                   >
                     {/* Cards — gap-6 so midpoint line passes between them */}
                     <div className="flex gap-6 items-start">
