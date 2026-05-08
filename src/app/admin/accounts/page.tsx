@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { Plus, Edit2, Trash2, X, Check, Users, Shield, User } from 'lucide-react'
+import { Plus, Edit2, Trash2, X, Check, Shield, User } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 
@@ -123,8 +123,8 @@ export default function AdminAccountsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 lg:p-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Tài khoản</h1>
           <p className="text-[#666] text-sm mt-1">{users.length} thành viên</p>

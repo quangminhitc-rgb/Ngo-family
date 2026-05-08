@@ -1,13 +1,9 @@
 'use client'
 
-/**
- * Admin Photos - Quản lý ảnh (với album selector + takenAt)
- */
-
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
-import { Upload, Trash2, Edit2, Check, X, Image, Plus, FolderOpen, Calendar, FolderPlus } from 'lucide-react'
-import { getPhotoUrl, formatDate, formatFileSize } from '@/lib/utils'
+import { Upload, Trash2, Edit2, Check, X, Image, Plus, FolderOpen, Calendar, FolderPlus, Layers } from 'lucide-react'
+import { getPhotoUrl, formatDate } from '@/lib/utils'
 
 interface Album {
   id: string
@@ -44,14 +40,18 @@ export default function AdminPhotosPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editState, setEditState] = useState<EditState>({ caption: '', takenAt: '', albumId: '' })
 
+  // Album filter: null = all, 'none' = no album, otherwise albumId
+  const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null)
+
   // Upload state
   const [previewFiles, setPreviewFiles] = useState<{
     file: File; preview: string; caption: string; takenAt: string; albumId: string
   }[]>([])
   const [uploadAlbumId, setUploadAlbumId] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
-  // Album management
+  // Album management modal
   const [showAlbumModal, setShowAlbumModal] = useState(false)
   const [newAlbumName, setNewAlbumName] = useState('')
   const [newAlbumDesc, setNewAlbumDesc] = useState('')
@@ -65,7 +65,7 @@ export default function AdminPhotosPage() {
   const fetchPhotos = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/photos?limit=100')
+      const res = await fetch('/api/photos?limit=500')
       const data = await res.json()
       setPhotos(data.photos ?? [])
     } finally {
@@ -78,11 +78,26 @@ export default function AdminPhotosPage() {
       const res = await fetch('/api/albums')
       const data = await res.json()
       setAlbums(data.albums ?? [])
-      // Default to "Ảnh riêng lẻ" (isDefault) album
       const def = data.albums?.find((a: Album) => a.isDefault)
       if (def) setUploadAlbumId(def.id)
     } catch {}
   }
+
+  // Derived counts & filtered list
+  const albumCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    photos.forEach(p => {
+      const key = p.albumId ?? 'none'
+      counts[key] = (counts[key] ?? 0) + 1
+    })
+    return counts
+  }, [photos])
+
+  const filteredPhotos = useMemo(() => {
+    if (selectedAlbum === null) return photos
+    if (selectedAlbum === 'none') return photos.filter(p => !p.albumId)
+    return photos.filter(p => p.albumId === selectedAlbum)
+  }, [photos, selectedAlbum])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -100,6 +115,7 @@ export default function AdminPhotosPage() {
   const handleUpload = async () => {
     if (previewFiles.length === 0) return
     setUploading(true)
+    setUploadError(null)
     try {
       const formData = new FormData()
       previewFiles.forEach(({ file, caption, takenAt, albumId }) => {
@@ -109,10 +125,15 @@ export default function AdminPhotosPage() {
         formData.append('albumIds', albumId || uploadAlbumId)
       })
       const res = await fetch('/api/photos', { method: 'POST', body: formData })
+      const json = await res.json()
       if (res.ok) {
         setPreviewFiles([])
         fetchPhotos()
+      } else {
+        setUploadError(json.error ?? `Lỗi ${res.status}`)
       }
+    } catch (e: any) {
+      setUploadError(e.message ?? 'Không thể kết nối server')
     } finally {
       setUploading(false)
     }
@@ -177,26 +198,44 @@ export default function AdminPhotosPage() {
   const handleDeleteAlbum = async (id: string, name: string) => {
     if (!confirm(`Xóa album "${name}"? Ảnh trong album sẽ không bị xóa.`)) return
     const res = await fetch(`/api/albums/${id}`, { method: 'DELETE' })
-    if (res.ok) fetchAlbums()
+    if (res.ok) {
+      fetchAlbums()
+      if (selectedAlbum === id) setSelectedAlbum(null)
+    }
   }
 
   const canDelete = (photo: Photo) =>
     session?.user.role === 'admin' || photo.userId === session?.user.id
 
+  const albumTabClass = (active: boolean) =>
+    `w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm transition-all text-left ${
+      active
+        ? 'bg-[#c9a84c]/15 text-[#c9a84c] font-medium'
+        : 'text-[#888] hover:text-white hover:bg-[#1a1a1a]'
+    }`
+
+  const mobileTabClass = (active: boolean) =>
+    `flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${
+      active
+        ? 'bg-[#c9a84c]/15 text-[#c9a84c] border-[#c9a84c]/30'
+        : 'bg-[#111] text-[#888] border-[#2a2a2a] hover:text-white hover:border-[#333]'
+    }`
+
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 lg:p-8">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Quản lý ảnh</h1>
-          <p className="text-[#666] text-sm mt-1">{photos.length} ảnh</p>
+          <p className="text-[#666] text-sm mt-1">{photos.length} ảnh · {albums.length} album</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAlbumModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] text-[#a0a0a0] text-sm hover:text-white hover:border-[#333] transition-all"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[#1a1a1a] border border-[#2a2a2a] text-[#a0a0a0] text-sm hover:text-white hover:border-[#333] transition-all"
           >
             <FolderPlus size={16} />
-            Album
+            <span className="hidden sm:inline">Album</span>
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -210,22 +249,30 @@ export default function AdminPhotosPage() {
 
       <input ref={fileInputRef} type="file" multiple accept="image/*" onChange={handleFileSelect} className="hidden" />
 
-      {/* Preview before upload */}
+      {/* Upload error */}
+      {uploadError && (
+        <div className="mb-4 px-4 py-3 rounded-xl flex items-center justify-between gap-3 text-sm"
+          style={{ background: 'rgba(224,82,82,0.1)', border: '1px solid rgba(224,82,82,0.3)', color: '#e05252' }}>
+          <span>{uploadError}</span>
+          <button onClick={() => setUploadError(null)} className="flex-shrink-0"><X size={14} /></button>
+        </div>
+      )}
+
+      {/* Upload preview */}
       {previewFiles.length > 0 && (
-        <div className="mb-8 p-5 rounded-2xl bg-[#111] border border-[#1a1a1a]">
-          <div className="flex items-center justify-between mb-4">
+        <div className="mb-6 p-5 rounded-2xl bg-[#111] border border-[#1a1a1a]">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h3 className="font-semibold text-white">Xem trước ({previewFiles.length} ảnh)</h3>
-            <div className="flex items-center gap-3">
-              {/* Global album selector */}
-              <div className="flex items-center gap-2">
-                <FolderOpen size={14} className="text-[#666]" />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <FolderOpen size={14} className="text-[#666] flex-shrink-0" />
                 <select
                   value={uploadAlbumId}
                   onChange={e => {
                     setUploadAlbumId(e.target.value)
                     setPreviewFiles(prev => prev.map(pf => ({ ...pf, albumId: e.target.value })))
                   }}
-                  className="text-xs px-2 py-1.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-white focus:outline-none focus:border-[#c9a84c]/40"
+                  className="text-xs px-2 py-1.5 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-white focus:outline-none focus:border-[#c9a84c]/40 max-w-[140px]"
                 >
                   <option value="">Không có album</option>
                   {albums.map(a => (
@@ -251,7 +298,6 @@ export default function AdminPhotosPage() {
               </button>
             </div>
           </div>
-
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {previewFiles.map((pf, i) => (
               <div key={i} className="relative group rounded-xl overflow-hidden bg-[#1a1a1a] border border-[#222]">
@@ -272,7 +318,6 @@ export default function AdminPhotosPage() {
                     onChange={e => {
                       const updated = [...previewFiles]; updated[i].takenAt = e.target.value; setPreviewFiles(updated)
                     }}
-                    placeholder="Ngày chụp"
                     className="w-full text-xs px-2 py-1.5 bg-[#111] border border-[#2a2a2a] rounded-lg text-white focus:outline-none focus:border-[#c9a84c]/40 [color-scheme:dark]"
                   />
                 </div>
@@ -288,131 +333,216 @@ export default function AdminPhotosPage() {
         </div>
       )}
 
-      {/* Photo list */}
-      {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="skeleton rounded-xl aspect-square" />
-          ))}
-        </div>
-      ) : photos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-20 h-20 rounded-full bg-[#1a1a1a] flex items-center justify-center mb-4">
-            <Image size={32} className="text-[#333]" />
-          </div>
-          <p className="text-[#666]">Chưa có ảnh nào</p>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl border border-[#2a2a2a] text-sm text-[#a0a0a0] hover:text-[#c9a84c] hover:border-[#c9a84c]/30 transition-all"
-          >
-            <Plus size={15} /> Upload ảnh đầu tiên
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {photos.map(photo => (
-            <div
-              key={photo.id}
-              className="group relative rounded-xl overflow-hidden bg-[#111] border border-[#1a1a1a] hover:border-[#2a2a2a] transition-all"
-            >
-              <div className="aspect-square">
-                <img
-                  src={getPhotoUrl(photo.filename)}
-                  alt={photo.caption ?? ''}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              </div>
+      {/* Main: sidebar + grid */}
+      <div className="flex gap-5">
 
-              {/* Album badge */}
-              {photo.album && (
-                <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[10px] text-white/70 backdrop-blur-sm max-w-[80%] truncate">
-                  {photo.album.name}
-                </div>
-              )}
-
-              {/* Hover overlay */}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
-                <div className="flex justify-end gap-1">
-                  <button
-                    onClick={() => openEdit(photo)}
-                    className="w-7 h-7 rounded-lg bg-[#1a1a1a]/80 flex items-center justify-center text-[#a0a0a0] hover:text-white transition-colors"
-                    title="Sửa"
-                  >
-                    <Edit2 size={13} />
-                  </button>
-                  {canDelete(photo) && (
-                    <button
-                      onClick={() => handleDelete(photo.id)}
-                      className="w-7 h-7 rounded-lg bg-[#e05252]/20 flex items-center justify-center text-[#e05252] hover:bg-[#e05252]/40 transition-colors"
-                      title="Xóa ảnh"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-                </div>
-                <div>
-                  {photo.caption && (
-                    <p className="text-white text-xs font-medium line-clamp-2">{photo.caption}</p>
-                  )}
-                  <p className="text-white/50 text-xs mt-0.5">
-                    {formatDate(photo.takenAt ?? photo.uploadedAt)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Edit modal */}
-              {editingId === photo.id && (
-                <div className="absolute inset-0 bg-[#111]/97 flex flex-col justify-center p-3 gap-2 overflow-y-auto">
-                  <p className="text-xs text-[#666] text-center font-medium">Chỉnh sửa ảnh</p>
-                  <input
-                    type="text"
-                    value={editState.caption}
-                    onChange={e => setEditState(s => ({ ...s, caption: e.target.value }))}
-                    autoFocus
-                    placeholder="Caption..."
-                    className="text-xs px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded-lg text-white placeholder-[#444] focus:outline-none focus:border-[#c9a84c]/40"
-                  />
-                  <div className="flex items-center gap-1.5">
-                    <Calendar size={11} className="text-[#555] flex-shrink-0" />
-                    <input
-                      type="date"
-                      value={editState.takenAt}
-                      onChange={e => setEditState(s => ({ ...s, takenAt: e.target.value }))}
-                      placeholder="Ngày chụp"
-                      className="flex-1 text-xs px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded-lg text-white focus:outline-none focus:border-[#c9a84c]/40 [color-scheme:dark]"
-                    />
-                  </div>
-                  <select
-                    value={editState.albumId}
-                    onChange={e => setEditState(s => ({ ...s, albumId: e.target.value }))}
-                    className="text-xs px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded-lg text-white focus:outline-none focus:border-[#c9a84c]/40"
-                  >
-                    <option value="">Không có album</option>
-                    {albums.map(a => (
-                      <option key={a.id} value={a.id}>{a.name}{a.isDefault ? ' (mặc định)' : ''}</option>
-                    ))}
-                  </select>
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={() => handleSaveEdit(photo.id)}
-                      className="flex-1 py-1.5 rounded-lg bg-[#c9a84c] text-[#0f0f0f] text-xs font-semibold flex items-center justify-center gap-1"
-                    >
-                      <Check size={12} /> Lưu
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="flex-1 py-1.5 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] text-[#a0a0a0] text-xs flex items-center justify-center gap-1"
-                    >
-                      <X size={12} /> Hủy
-                    </button>
-                  </div>
-                </div>
+        {/* Desktop album sidebar */}
+        <div className="hidden lg:block w-48 flex-shrink-0">
+          <div className="sticky top-4 rounded-2xl bg-[#111] border border-[#1a1a1a] overflow-hidden">
+            <div className="px-3 py-2.5 border-b border-[#1a1a1a]">
+              <p className="text-[10px] font-semibold text-[#555] uppercase tracking-wider">Album</p>
+            </div>
+            <div className="p-2 space-y-0.5">
+              <button
+                onClick={() => setSelectedAlbum(null)}
+                className={albumTabClass(selectedAlbum === null)}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <Layers size={14} className="flex-shrink-0" />
+                  <span className="truncate">Tất cả</span>
+                </span>
+                <span className="text-xs text-[#555] flex-shrink-0">{photos.length}</span>
+              </button>
+              {albums.map(album => (
+                <button
+                  key={album.id}
+                  onClick={() => setSelectedAlbum(album.id)}
+                  className={albumTabClass(selectedAlbum === album.id)}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <FolderOpen size={14} className="flex-shrink-0" />
+                    <span className="truncate">{album.name}</span>
+                  </span>
+                  <span className="text-xs text-[#555] flex-shrink-0">{albumCounts[album.id] ?? 0}</span>
+                </button>
+              ))}
+              {(albumCounts['none'] ?? 0) > 0 && (
+                <button
+                  onClick={() => setSelectedAlbum('none')}
+                  className={albumTabClass(selectedAlbum === 'none')}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Image size={14} className="flex-shrink-0" />
+                    <span className="truncate">Chưa phân loại</span>
+                  </span>
+                  <span className="text-xs text-[#555] flex-shrink-0">{albumCounts['none']}</span>
+                </button>
               )}
             </div>
-          ))}
+          </div>
         </div>
-      )}
+
+        {/* Content area */}
+        <div className="flex-1 min-w-0">
+
+          {/* Mobile horizontal filter */}
+          <div className="lg:hidden flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
+            <button onClick={() => setSelectedAlbum(null)} className={mobileTabClass(selectedAlbum === null)}>
+              Tất cả <span className="text-[#555]">{photos.length}</span>
+            </button>
+            {albums.map(album => (
+              <button key={album.id} onClick={() => setSelectedAlbum(album.id)} className={mobileTabClass(selectedAlbum === album.id)}>
+                {album.name} <span className="text-[#555]">{albumCounts[album.id] ?? 0}</span>
+              </button>
+            ))}
+            {(albumCounts['none'] ?? 0) > 0 && (
+              <button onClick={() => setSelectedAlbum('none')} className={mobileTabClass(selectedAlbum === 'none')}>
+                Chưa phân loại <span className="text-[#555]">{albumCounts['none']}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Current album label */}
+          {selectedAlbum !== null && (
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium text-white">
+                {selectedAlbum === 'none'
+                  ? 'Chưa phân loại'
+                  : albums.find(a => a.id === selectedAlbum)?.name ?? ''}
+                <span className="ml-2 text-[#555] font-normal">{filteredPhotos.length} ảnh</span>
+              </p>
+              <button onClick={() => setSelectedAlbum(null)} className="text-xs text-[#555] hover:text-[#888]">
+                Xem tất cả
+              </button>
+            </div>
+          )}
+
+          {/* Photo grid */}
+          {loading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="skeleton rounded-xl aspect-square" />
+              ))}
+            </div>
+          ) : filteredPhotos.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <div className="w-20 h-20 rounded-full bg-[#1a1a1a] flex items-center justify-center mb-4">
+                <Image size={32} className="text-[#333]" />
+              </div>
+              <p className="text-[#666]">
+                {selectedAlbum !== null ? 'Album này chưa có ảnh' : 'Chưa có ảnh nào'}
+              </p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl border border-[#2a2a2a] text-sm text-[#a0a0a0] hover:text-[#c9a84c] hover:border-[#c9a84c]/30 transition-all"
+              >
+                <Plus size={15} /> Upload ảnh
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+              {filteredPhotos.map(photo => (
+                <div
+                  key={photo.id}
+                  className="group relative rounded-xl overflow-hidden bg-[#111] border border-[#1a1a1a] hover:border-[#2a2a2a] transition-all"
+                >
+                  <div className="aspect-square">
+                    <img
+                      src={getPhotoUrl(photo.filename)}
+                      alt={photo.caption ?? ''}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+
+                  {/* Album badge — only when showing all */}
+                  {selectedAlbum === null && photo.album && (
+                    <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[10px] text-white/70 backdrop-blur-sm max-w-[80%] truncate">
+                      {photo.album.name}
+                    </div>
+                  )}
+
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        onClick={() => openEdit(photo)}
+                        className="w-7 h-7 rounded-lg bg-[#1a1a1a]/80 flex items-center justify-center text-[#a0a0a0] hover:text-white transition-colors"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                      {canDelete(photo) && (
+                        <button
+                          onClick={() => handleDelete(photo.id)}
+                          className="w-7 h-7 rounded-lg bg-[#e05252]/20 flex items-center justify-center text-[#e05252] hover:bg-[#e05252]/40 transition-colors"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                    <div>
+                      {photo.caption && (
+                        <p className="text-white text-xs font-medium line-clamp-2">{photo.caption}</p>
+                      )}
+                      <p className="text-white/50 text-xs mt-0.5">
+                        {formatDate(photo.takenAt ?? photo.uploadedAt)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Edit overlay */}
+                  {editingId === photo.id && (
+                    <div className="absolute inset-0 bg-[#111]/97 flex flex-col justify-center p-3 gap-2 overflow-y-auto">
+                      <p className="text-xs text-[#666] text-center font-medium">Chỉnh sửa ảnh</p>
+                      <input
+                        type="text"
+                        value={editState.caption}
+                        onChange={e => setEditState(s => ({ ...s, caption: e.target.value }))}
+                        autoFocus
+                        placeholder="Caption..."
+                        className="text-xs px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded-lg text-white placeholder-[#444] focus:outline-none focus:border-[#c9a84c]/40"
+                      />
+                      <div className="flex items-center gap-1.5">
+                        <Calendar size={11} className="text-[#555] flex-shrink-0" />
+                        <input
+                          type="date"
+                          value={editState.takenAt}
+                          onChange={e => setEditState(s => ({ ...s, takenAt: e.target.value }))}
+                          className="flex-1 text-xs px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded-lg text-white focus:outline-none focus:border-[#c9a84c]/40 [color-scheme:dark]"
+                        />
+                      </div>
+                      <select
+                        value={editState.albumId}
+                        onChange={e => setEditState(s => ({ ...s, albumId: e.target.value }))}
+                        className="text-xs px-2 py-1.5 bg-[#1a1a1a] border border-[#333] rounded-lg text-white focus:outline-none focus:border-[#c9a84c]/40"
+                      >
+                        <option value="">Không có album</option>
+                        {albums.map(a => (
+                          <option key={a.id} value={a.id}>{a.name}{a.isDefault ? ' (mặc định)' : ''}</option>
+                        ))}
+                      </select>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => handleSaveEdit(photo.id)}
+                          className="flex-1 py-1.5 rounded-lg bg-[#c9a84c] text-[#0f0f0f] text-xs font-semibold flex items-center justify-center gap-1"
+                        >
+                          <Check size={12} /> Lưu
+                        </button>
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className="flex-1 py-1.5 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] text-[#a0a0a0] text-xs flex items-center justify-center gap-1"
+                        >
+                          <X size={12} /> Hủy
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Album management modal */}
       {showAlbumModal && (
@@ -430,9 +560,7 @@ export default function AdminPhotosPage() {
                 <X size={15} />
               </button>
             </div>
-
             <div className="p-5 space-y-4">
-              {/* Create album form */}
               <div className="space-y-2">
                 <input
                   type="text"
@@ -460,8 +588,6 @@ export default function AdminPhotosPage() {
                   Tạo album
                 </button>
               </div>
-
-              {/* Album list */}
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {albums.length === 0 ? (
                   <p className="text-center text-[#555] text-sm py-4">Chưa có album nào</p>
@@ -474,9 +600,10 @@ export default function AdminPhotosPage() {
                       <FolderOpen size={16} className="text-[#c9a84c] flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white font-medium truncate">{album.name}</p>
-                        {album.isDefault && (
-                          <span className="text-[10px] text-[#666]">Album mặc định</span>
-                        )}
+                        <p className="text-[10px] text-[#555]">
+                          {albumCounts[album.id] ?? 0} ảnh
+                          {album.isDefault ? ' · Album mặc định' : ''}
+                        </p>
                       </div>
                       {!album.isDefault && (
                         <button

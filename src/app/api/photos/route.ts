@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       const ext = path.extname(file.name).toLowerCase() || '.jpg'
       const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`
       const buffer = Buffer.from(await file.arrayBuffer())
-      const publicUrl = await uploadToStorage('photos', filename, buffer, file.type)
+      const publicUrl = await uploadToStorage('photos', filename, buffer)
 
       let resolvedAlbumId = photoAlbumId
       if (resolvedAlbumId) {
@@ -85,6 +85,6 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     if (e.message === 'Unauthorized') return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 })
     console.error('[POST /api/photos]', e)
-    return NextResponse.json({ error: 'Lỗi server' }, { status: 500 })
+    return NextResponse.json({ error: e.message ?? 'Lỗi server' }, { status: 500 })
   }
 }

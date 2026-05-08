@@ -234,18 +234,18 @@ export function YearCalendar() {
               <h2 className="text-sm font-semibold text-white uppercase tracking-wider">
                 Tất cả ngày đặc biệt — {year}
               </h2>
-              <span className="ml-auto text-xs text-[#555] bg-[#1a1a1a] px-2 py-1 rounded-full border border-[#222]">
+              <span className="ml-auto text-xs text-[#888] bg-[#1a1a1a] px-2 py-1 rounded-full border border-[#222]">
                 {totalItems} ngày
               </span>
             </div>
 
             {/* Legend nhỏ */}
             <div className="flex flex-wrap gap-3 mb-6">
-              <span className="flex items-center gap-1.5 text-xs text-[#555]">
+              <span className="flex items-center gap-1.5 text-xs text-[#888]">
                 <span className="w-2.5 h-2.5 rounded-sm bg-[#e05252]/40 border border-[#e05252]/50 inline-block" />
                 Lễ nhà nước
               </span>
-              <span className="flex items-center gap-1.5 text-xs text-[#555]">
+              <span className="flex items-center gap-1.5 text-xs text-[#888]">
                 <span className="w-2.5 h-2.5 rounded-sm bg-[#c9a84c]/40 border border-[#c9a84c]/50 inline-block" />
                 Sự kiện gia đình
               </span>
@@ -264,7 +264,7 @@ export function YearCalendar() {
                         {MONTHS_VI[Number(monthIdx)]}
                       </span>
                       <div className="flex-1 h-px bg-[#1a1a1a]" />
-                      <span className="text-[10px] text-[#444] group-hover:text-[#c9a84c] transition-colors">
+                      <span className="text-[10px] text-[#777] group-hover:text-[#c9a84c] transition-colors">
                         Xem tháng →
                       </span>
                     </button>
@@ -281,7 +281,7 @@ export function YearCalendar() {
                             >
                               <div className="flex-shrink-0 w-10 text-center">
                                 <div className="text-xl font-bold text-white leading-none">{h.date.getDate()}</div>
-                                <div className="text-[10px] text-[#555] mt-0.5 uppercase">
+                                <div className="text-[10px] text-[#888] mt-0.5 uppercase">
                                   {['CN','T2','T3','T4','T5','T6','T7'][h.date.getDay()]}
                                 </div>
                               </div>
@@ -291,7 +291,7 @@ export function YearCalendar() {
                                   <p className="font-medium text-white text-sm truncate">{h.title}</p>
                                 </div>
                                 {h.description && (
-                                  <p className="text-[#666] text-xs mt-1 line-clamp-1">{h.description}</p>
+                                  <p className="text-[#999] text-xs mt-1 line-clamp-1">{h.description}</p>
                                 )}
                                 <span
                                   className="inline-block mt-1.5 text-[10px] font-medium px-1.5 py-0.5 rounded"
@@ -316,7 +316,7 @@ export function YearCalendar() {
                           >
                             <div className="flex-shrink-0 w-10 text-center">
                               <div className="text-xl font-bold text-white leading-none">{d.getDate()}</div>
-                              <div className="text-[10px] text-[#555] mt-0.5 uppercase">
+                              <div className="text-[10px] text-[#888] mt-0.5 uppercase">
                                 {['CN','T2','T3','T4','T5','T6','T7'][d.getDay()]}
                               </div>
                             </div>
@@ -326,14 +326,14 @@ export function YearCalendar() {
                                 <p className="font-medium text-white text-sm truncate">{event.title}</p>
                               </div>
                               {event.description && (
-                                <p className="text-[#666] text-xs mt-1 line-clamp-1">{event.description}</p>
+                                <p className="text-[#999] text-xs mt-1 line-clamp-1">{event.description}</p>
                               )}
                               <div className="flex items-center gap-2 mt-1.5">
                                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: `${color}20`, color }}>
                                   {name}
                                 </span>
                                 {event.isRecurring && (
-                                  <span className="text-[10px] text-[#555]">↻ Hàng năm</span>
+                                  <span className="text-[10px] text-[#888]">↻ Hàng năm</span>
                                 )}
                               </div>
                             </div>
@@ -402,7 +402,7 @@ function MiniMonthCard({ year, month, monthName, eventMap, holidayMap, today, on
       {/* Weekday headers */}
       <div className="grid grid-cols-7 gap-0.5 mb-1">
         {DAYS_VI.map(d => (
-          <div key={d} className="text-center text-[10px] text-[#3a3a3a] font-medium py-0.5">
+          <div key={d} className="text-center text-[11px] text-[#666] font-medium py-0.5">
             {d}
           </div>
         ))}
@@ -441,21 +441,21 @@ function MiniMonthCard({ year, month, monthName, eventMap, holidayMap, today, on
               onClick={() => onDayClick(day)}
             >
               <div
-                className={`aspect-square flex flex-col items-center justify-center rounded-lg text-[11px] font-medium transition-all duration-100 select-none cursor-pointer ${
+                className={`aspect-square flex flex-col items-center justify-center rounded-lg text-[12px] font-medium transition-all duration-100 select-none cursor-pointer ${
                   isToday
                     ? 'bg-[#c9a84c]/20 text-[#c9a84c] border border-[#c9a84c]/40 font-bold hover:bg-[#c9a84c]/30'
                     : hasHolidays
                     ? 'bg-[#e05252]/10 text-[#e05252] border border-[#e05252]/20 hover:bg-[#e05252]/20'
                     : hasEvents
                     ? 'bg-[#1a1a1a] text-white hover:bg-[#222]'
-                    : 'text-[#3a3a3a] hover:bg-[#1a1a1a] hover:text-[#666]'
+                    : 'text-[#666] hover:bg-[#1a1a1a] hover:text-[#999]'
                 }`}
               >
                 <span className="leading-none">{day}</span>
-                <span className={`text-[8px] leading-none mt-0.5 ${
+                <span className={`text-[9px] leading-none mt-0.5 ${
                   lunar.day === 1
-                    ? isToday ? 'text-[#c9a84c]/80' : 'text-[#c9a84c]/50'
-                    : 'opacity-30'
+                    ? isToday ? 'text-[#c9a84c]/90' : 'text-[#c9a84c]/70'
+                    : 'opacity-50'
                 }`}>
                   {lunarLabel}
                 </span>
@@ -568,7 +568,7 @@ function FullMonthView({ year, month, eventMap, holidayMap, today }: FullMonthVi
           <div
             key={d}
             className={`py-3 text-center text-xs font-semibold uppercase tracking-wider ${
-              i === 0 ? 'text-[#e05252]/70' : 'text-[#444]'
+              i === 0 ? 'text-[#e05252]/90' : 'text-[#777]'
             }`}
           >
             {d}
@@ -624,13 +624,13 @@ function FullMonthView({ year, month, eventMap, holidayMap, today }: FullMonthVi
                     : hasHolidays
                     ? 'text-[#e05252]'
                     : isSunday
-                    ? 'text-[#e05252]/70'
-                    : 'text-[#888]'
+                    ? 'text-[#e05252]/90'
+                    : 'text-[#bbb]'
                 }`}>
                   {day}
                 </div>
-                <span className={`text-[9px] leading-none mt-1 ${
-                  lunar.day === 1 ? 'text-[#c9a84c]/60 font-medium' : 'text-[#333]'
+                <span className={`text-[10px] leading-none mt-1 ${
+                  lunar.day === 1 ? 'text-[#c9a84c]/80 font-medium' : 'text-[#555]'
                 }`}>
                   {lunarLabel}
                 </span>

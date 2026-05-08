@@ -7,7 +7,6 @@
 
 import { useState, useEffect } from 'react'
 import { Plus, Edit2, Trash2, Calendar, X, Check, Tag, RefreshCw, Moon } from 'lucide-react'
-import { formatDateLong } from '@/lib/utils'
 
 interface EventType {
   id: string
@@ -200,16 +199,16 @@ export default function AdminCalendarPage() {
   }, {})
 
   return (
-    <div className="p-8">
+    <div className="p-4 lg:p-8">
       {/* Page header + tab toggle */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Quản lý lịch</h1>
           <p className="text-[#666] text-sm mt-1">
             {tab === 'events' ? `${events.length} sự kiện năm ${year}` : `${eventTypes.length} loại sự kiện`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Tab toggle */}
           <div className="flex items-center gap-1 p-1 rounded-xl bg-[#1a1a1a] border border-[#2a2a2a]">
             <button
@@ -228,7 +227,7 @@ export default function AdminCalendarPage() {
               }`}
             >
               <Tag size={13} />
-              Loại sự kiện
+              Loại
             </button>
           </div>
 
@@ -237,7 +236,7 @@ export default function AdminCalendarPage() {
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#c9a84c] text-[#0f0f0f] font-semibold text-sm hover:bg-[#d4b461] transition-all"
           >
             <Plus size={17} />
-            {tab === 'events' ? 'Thêm sự kiện' : 'Thêm loại mới'}
+            {tab === 'events' ? 'Thêm sự kiện' : 'Thêm loại'}
           </button>
         </div>
       </div>

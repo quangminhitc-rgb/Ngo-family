@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Navbar } from '@/components/ui/Navbar'
+import { AnnouncementPopup } from '@/components/ui/AnnouncementPopup'
 import { Image as ImageIcon, Calendar, GitBranch, ArrowRight, Heart, PartyPopper } from 'lucide-react'
 
 interface BirthdayEvent {
@@ -53,6 +54,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen relative" style={{ background: 'var(--bg)' }}>
       <Navbar />
+      <AnnouncementPopup />
 
       {/* Background image */}
       {bgUrl && (
@@ -108,8 +110,8 @@ export default function HomePage() {
             Không gian riêng của gia đình
           </div>
 
-          <h1 className={`text-4xl sm:text-6xl font-bold mb-5 leading-tight tracking-tight ${bgUrl ? 'text-white drop-shadow-lg' : ''}`}
-            style={bgUrl ? {} : { color: 'var(--text-1)' }}>
+          <h1 className={`text-4xl sm:text-6xl font-bold mb-5 leading-tight tracking-tight ${bgUrl ? 'drop-shadow-lg' : ''}`}
+            style={{ color: 'white' }}>
             {appName}
           </h1>
 

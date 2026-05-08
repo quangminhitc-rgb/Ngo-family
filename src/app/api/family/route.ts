@@ -49,10 +49,27 @@ export async function POST(req: NextRequest) {
       const ext = path.extname(file.name) || '.jpg'
       const filename = `member-${Date.now()}${ext}`
       const buffer = Buffer.from(await file.arrayBuffer())
-      data.photoUrl = await uploadToStorage('members', filename, buffer, file.type)
+      data.photoUrl = await uploadToStorage('members', filename, buffer)
     }
 
     const member = await prisma.familyMember.create({ data })
+
+    // Bidirectional spouse sync: add new member's ID to each spouse's spouseIds
+    const newSpouseIds: string[] = (() => { try { return JSON.parse(data.spouseIds) } catch { return [] } })()
+    if (newSpouseIds.length > 0) {
+      await Promise.all(newSpouseIds.map(async (spouseId) => {
+        const spouse = await prisma.familyMember.findUnique({ where: { id: spouseId } })
+        if (!spouse) return
+        const spIds: string[] = (() => { try { return JSON.parse(spouse.spouseIds) } catch { return [] } })()
+        if (!spIds.includes(member.id)) {
+          await prisma.familyMember.update({
+            where: { id: spouseId },
+            data: { spouseIds: JSON.stringify([...spIds, member.id]) },
+          })
+        }
+      }))
+    }
+
     return NextResponse.json({ member }, { status: 201 })
   } catch (e: any) {
     if (e.message === 'Unauthorized') return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 })

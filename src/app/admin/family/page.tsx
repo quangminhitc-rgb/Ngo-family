@@ -196,13 +196,19 @@ export default function AdminFamilyPage() {
   const fatherCandidates = otherMembers.filter(m => m.generation === parentGen && (m.gender === 'male'   || m.gender === 'other'))
   const motherCandidates = otherMembers.filter(m => m.generation === parentGen && (m.gender === 'female' || m.gender === 'other'))
 
+  const parseSpouseIds = (raw: string): string[] => { try { return JSON.parse(raw) } catch { return [] } }
+
   const handleFatherChange = (fatherId: string) => {
     const update: Partial<typeof form> = { fatherId }
-    if (fatherId && !form.motherId) {
+    if (fatherId) {
       const father = otherMembers.find(m => m.id === fatherId)
       if (father) {
-        const spIds: string[] = (() => { try { return JSON.parse(father.spouseIds) } catch { return [] } })()
-        const spouse = otherMembers.find(m => spIds.includes(m.id) && (m.gender === 'female' || m.gender === 'other'))
+        const fSpIds = parseSpouseIds(father.spouseIds)
+        // Check both directions: father lists her, OR she lists father
+        const spouse = otherMembers.find(m =>
+          (m.gender === 'female' || m.gender === 'other') &&
+          (fSpIds.includes(m.id) || parseSpouseIds(m.spouseIds).includes(fatherId))
+        )
         if (spouse) update.motherId = spouse.id
       }
     }
@@ -211,11 +217,15 @@ export default function AdminFamilyPage() {
 
   const handleMotherChange = (motherId: string) => {
     const update: Partial<typeof form> = { motherId }
-    if (motherId && !form.fatherId) {
+    if (motherId) {
       const mother = otherMembers.find(m => m.id === motherId)
       if (mother) {
-        const spIds: string[] = (() => { try { return JSON.parse(mother.spouseIds) } catch { return [] } })()
-        const spouse = otherMembers.find(m => spIds.includes(m.id) && (m.gender === 'male' || m.gender === 'other'))
+        const mSpIds = parseSpouseIds(mother.spouseIds)
+        // Check both directions: mother lists him, OR he lists mother
+        const spouse = otherMembers.find(m =>
+          (m.gender === 'male' || m.gender === 'other') &&
+          (mSpIds.includes(m.id) || parseSpouseIds(m.spouseIds).includes(motherId))
+        )
         if (spouse) update.fatherId = spouse.id
       }
     }
@@ -237,7 +247,7 @@ export default function AdminFamilyPage() {
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-1)' }}>Cây gia phả</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-3)' }}>{members.length} thành viên</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Tab toggle */}
           <div className="flex rounded-xl p-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
             <button
@@ -378,16 +388,16 @@ export default function AdminFamilyPage() {
                                   <span className="text-xs" style={{ color: 'var(--text-3)' }}>({member.nickname})</span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-3 mt-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs" style={{ color: 'var(--text-3)' }}>
                                 <span>{genderInfo?.label}</span>
                                 {member.birthDate && <span>🎂 {member.birthDate}</span>}
                                 {spouseIds.length > 0 && (
-                                  <span>❤️ {spouseIds.map(sid => members.find(m => m.id === sid)?.name ?? '?').join(', ')}</span>
+                                  <span className="truncate max-w-[160px]">❤️ {spouseIds.map(sid => members.find(m => m.id === sid)?.name ?? '?').join(', ')}</span>
                                 )}
                               </div>
                             </div>
 
-                            <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={() => openEdit(member)}
                                 className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"

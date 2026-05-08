@@ -7,7 +7,7 @@
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Image, Calendar, Users, ArrowRight, TrendingUp } from 'lucide-react'
+import { Image, Calendar, Users, ArrowRight } from 'lucide-react'
 
 interface Stats {
   totalPhotos: number
@@ -74,9 +74,9 @@ export default function DashboardPage() {
   ]
 
   return (
-    <div className="p-8">
+    <div className="p-4 lg:p-8">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">
           Xin chào, {session?.user.displayName} 👋
         </h1>

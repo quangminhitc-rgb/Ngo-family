@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Image, Calendar, GitBranch, Settings, Sun, Moon, ChevronRight, X } from 'lucide-react'
+import { Home, Image, Calendar, GitBranch, Settings, Sun, Moon, ChevronRight, X, Menu } from 'lucide-react'
 import { useTheme } from '@/lib/theme'
 
 const navLinks = [
@@ -16,21 +16,29 @@ const navLinks = [
 export function Navbar() {
   const pathname = usePathname()
   const { theme, toggle } = useTheme()
-  const [open, setOpen] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const appName = process.env.NEXT_PUBLIC_APP_NAME ?? 'Gia Đình Tôi'
 
   return (
     <>
-      {/* ── Desktop top bar ── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[var(--surface)]/90 backdrop-blur-md border-b border-[var(--border)]">
+      {/* ── Desktop + Mobile top bar ── */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-black/40 backdrop-blur-md border-b border-white/10">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+
+          {/* Mobile: hamburger */}
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="md:hidden w-9 h-9 flex items-center justify-center rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
+          >
+            <Menu size={20} />
+          </button>
+
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-[var(--accent-bg)] flex items-center justify-center border border-[var(--accent-bd)]">
               <span className="text-[var(--accent)] text-xs font-bold">GĐ</span>
             </div>
-            <span className="text-[var(--text-1)] font-semibold tracking-wide text-sm hidden sm:block">
-              {process.env.NEXT_PUBLIC_APP_NAME ?? 'Gia Đình Tôi'}
-            </span>
+            <span className="text-white font-semibold tracking-wide text-sm hidden sm:block">{appName}</span>
           </Link>
 
           {/* Desktop nav links */}
@@ -40,9 +48,7 @@ export function Navbar() {
               return (
                 <Link key={href} href={href}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all ${
-                    active
-                      ? 'bg-[var(--accent-bg)] text-[var(--accent)] font-medium'
-                      : 'text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--surface-2)]'
+                    active ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:text-white hover:bg-white/10'
                   }`}
                 >
                   <Icon size={15} />
@@ -54,17 +60,13 @@ export function Navbar() {
 
           {/* Right actions */}
           <div className="flex items-center gap-1">
-            {/* Theme toggle */}
             <button onClick={toggle}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-3)] hover:text-[var(--accent)] hover:bg-[var(--surface-2)] transition-all"
-              title={theme === 'dark' ? 'Chuyển sang sáng' : 'Chuyển sang tối'}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-
-            {/* Admin */}
             <Link href="/admin/login"
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-3)] hover:text-[var(--accent)] hover:bg-[var(--surface-2)] transition-all"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all"
               title="Trang quản trị"
             >
               <Settings size={15} />
@@ -73,74 +75,68 @@ export function Navbar() {
         </div>
       </nav>
 
-      {/* ── Mobile: left-edge tab trigger ── */}
-      <button
-        onClick={() => setOpen(true)}
-        className="md:hidden fixed left-0 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center justify-center w-5 h-20 bg-[var(--surface)] border border-l-0 border-[var(--border)] rounded-r-xl shadow-md text-[var(--text-3)] hover:text-[var(--accent)] transition-colors"
-        aria-label="Mở menu"
-      >
-        <ChevronRight size={14} />
-      </button>
-
       {/* ── Mobile: backdrop ── */}
-      {open && (
+      {mobileOpen && (
         <div
           className="md:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-          onClick={() => setOpen(false)}
+          onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* ── Mobile: slide-in panel ── */}
-      <div className={`md:hidden fixed top-0 left-0 h-full w-64 z-50 bg-[var(--surface)] border-r border-[var(--border)] shadow-lg flex flex-col transition-transform duration-300 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
-        {/* Panel header */}
-        <div className="flex items-center justify-between px-5 h-14 border-b border-[var(--border)]">
+      {/* ── Mobile: slide-in sidebar ── */}
+      <div className={`md:hidden fixed top-0 left-0 h-full w-64 z-50 flex flex-col transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{ background: 'var(--surface)', borderRight: '1px solid var(--border)' }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 h-14" style={{ borderBottom: '1px solid var(--border)' }}>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-[var(--accent-bg)] flex items-center justify-center border border-[var(--accent-bd)]">
-              <span className="text-[var(--accent)] text-[10px] font-bold">GĐ</span>
+            <div className="w-7 h-7 rounded-full bg-[var(--accent-bg)] flex items-center justify-center border border-[var(--accent-bd)]">
+              <span className="text-[var(--accent)] text-xs font-bold">GĐ</span>
             </div>
-            <span className="text-[var(--text-1)] font-semibold text-sm">
-              {process.env.NEXT_PUBLIC_APP_NAME ?? 'Gia Đình Tôi'}
-            </span>
+            <span className="font-semibold text-sm" style={{ color: 'var(--text-1)' }}>{appName}</span>
           </div>
-          <button onClick={() => setOpen(false)}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--text-3)] hover:text-[var(--text-1)] hover:bg-[var(--surface-2)] transition-all"
+          <button onClick={() => setMobileOpen(false)}
+            className="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
+            style={{ color: 'var(--text-3)' }}
           >
             <X size={15} />
           </button>
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
           {navLinks.map(({ href, label, icon: Icon }) => {
             const active = pathname === href
             return (
-              <Link key={href} href={href} onClick={() => setOpen(false)}
+              <Link key={href} href={href} onClick={() => setMobileOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
                   active
                     ? 'bg-[var(--accent-bg)] text-[var(--accent)] font-medium border border-[var(--accent-bd)]'
                     : 'text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--surface-2)]'
                 }`}
               >
-                <Icon size={17} />
-                {label}
-                {active && <ChevronRight size={13} className="ml-auto text-[var(--accent)]/60" />}
+                <Icon size={16} />
+                <span className="flex-1">{label}</span>
+                {active && <ChevronRight size={13} className="text-[var(--accent)]/60" />}
               </Link>
             )
           })}
         </nav>
 
-        {/* Panel footer */}
-        <div className="px-3 py-4 border-t border-[var(--border)] space-y-1">
+        {/* Footer */}
+        <div className="px-3 py-3 space-y-0.5" style={{ borderTop: '1px solid var(--border)' }}>
           <button onClick={toggle}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--surface-2)] transition-all"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all"
+            style={{ color: 'var(--text-2)' }}
           >
-            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             {theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
           </button>
-          <Link href="/admin/login" onClick={() => setOpen(false)}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--text-2)] hover:text-[var(--text-1)] hover:bg-[var(--surface-2)] transition-all"
+          <Link href="/admin/login" onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all"
+            style={{ color: 'var(--text-2)' }}
           >
-            <Settings size={17} />
+            <Settings size={16} />
             Quản trị
           </Link>
         </div>

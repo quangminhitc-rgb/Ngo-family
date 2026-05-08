@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       const ext = path.extname(file.name) || '.jpg'
       const filename = `bg-${Date.now()}${ext}`
       const buffer = Buffer.from(await file.arrayBuffer())
-      const url = await uploadToStorage('backgrounds', filename, buffer, file.type)
+      const url = await uploadToStorage('backgrounds', filename, buffer)
 
       await prisma.siteSetting.upsert({
         where: { key: 'home_background' },

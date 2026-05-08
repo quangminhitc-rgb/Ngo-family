@@ -58,7 +58,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const ext = path.extname(file.name) || '.jpg'
         const filename = `member-${params.id}-${Date.now()}${ext}`
         const buffer = Buffer.from(await file.arrayBuffer())
-        updateData.photoUrl = await uploadToStorage('members', filename, buffer, file.type)
+        updateData.photoUrl = await uploadToStorage('members', filename, buffer)
       }
     } else {
       const body = await req.json()
@@ -78,7 +78,45 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (orderInGen !== undefined) updateData.orderInGen = orderInGen
     }
 
+    // Fetch old spouseIds before update so we can diff for bidirectional sync
+    const currentMember = updateData.spouseIds !== undefined
+      ? await prisma.familyMember.findUnique({ where: { id: params.id }, select: { spouseIds: true } })
+      : null
+
     const member = await prisma.familyMember.update({ where: { id: params.id }, data: updateData })
+
+    // Bidirectional spouse sync
+    if (updateData.spouseIds !== undefined) {
+      const oldSpouseIds: string[] = (() => { try { return JSON.parse(currentMember?.spouseIds ?? '[]') } catch { return [] } })()
+      const newSpouseIds: string[] = (() => { try { return JSON.parse(updateData.spouseIds) } catch { return [] } })()
+      const added   = newSpouseIds.filter(id => !oldSpouseIds.includes(id))
+      const removed = oldSpouseIds.filter(id => !newSpouseIds.includes(id))
+      await Promise.all([
+        ...added.map(async (spouseId) => {
+          const spouse = await prisma.familyMember.findUnique({ where: { id: spouseId } })
+          if (!spouse) return
+          const spIds: string[] = (() => { try { return JSON.parse(spouse.spouseIds) } catch { return [] } })()
+          if (!spIds.includes(params.id)) {
+            await prisma.familyMember.update({
+              where: { id: spouseId },
+              data: { spouseIds: JSON.stringify([...spIds, params.id]) },
+            })
+          }
+        }),
+        ...removed.map(async (spouseId) => {
+          const spouse = await prisma.familyMember.findUnique({ where: { id: spouseId } })
+          if (!spouse) return
+          const spIds: string[] = (() => { try { return JSON.parse(spouse.spouseIds) } catch { return [] } })()
+          if (spIds.includes(params.id)) {
+            await prisma.familyMember.update({
+              where: { id: spouseId },
+              data: { spouseIds: JSON.stringify(spIds.filter(id => id !== params.id)) },
+            })
+          }
+        }),
+      ])
+    }
+
     return NextResponse.json({ member })
   } catch (e: any) {
     if (e.message === 'Unauthorized') return NextResponse.json({ error: 'Chưa đăng nhập' }, { status: 401 })
@@ -87,7 +125,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     await requireAdmin()
     await prisma.familyMember.delete({ where: { id: params.id } })
