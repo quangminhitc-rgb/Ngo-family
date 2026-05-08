@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { X, User, Calendar, Info, Plus, Pencil } from 'lucide-react'
 import { getPhotoUrl } from '@/lib/utils'
 
@@ -397,6 +397,8 @@ function buildSvgLines(
 // ── FamilyTree component ─────────────────────────────────────────
 export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
   const [selected, setSelected] = useState<FamilyMember | null>(null)
+  const [scale, setScale]       = useState(1)
+  const containerRef            = useRef<HTMLDivElement>(null)
 
   const memberMap = useMemo(() => {
     const m: Record<string, FamilyMember> = {}
@@ -404,11 +406,64 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
     return m
   }, [members])
 
-  const layout  = useMemo(() => calculateLayout(members), [members])
+  const layout   = useMemo(() => calculateLayout(members), [members])
   const svgLines = useMemo(
     () => buildSvgLines(layout.allUnits, layout.positions),
     [layout],
   )
+
+  // Auto-fit to container width on first render
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || !layout.totalW) return
+    const w = el.clientWidth
+    if (layout.totalW > w && w > 0) setScale(Math.max(w / layout.totalW, 0.2))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Pinch-to-zoom (mobile touch)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    let lastDist = 0
+    let pinching = false
+    const getDist = (e: TouchEvent) => Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY,
+    )
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) { lastDist = getDist(e); pinching = true }
+    }
+    const onMove = (e: TouchEvent) => {
+      if (!pinching || e.touches.length !== 2) return
+      e.preventDefault()
+      const d = getDist(e)
+      if (lastDist > 0) setScale(s => Math.min(Math.max(s * (d / lastDist), 0.2), 4))
+      lastDist = d
+    }
+    const onEnd = (e: TouchEvent) => { if (e.touches.length < 2) pinching = false }
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove',  onMove,  { passive: false })
+    el.addEventListener('touchend',   onEnd,   { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove',  onMove)
+      el.removeEventListener('touchend',   onEnd)
+    }
+  }, [])
+
+  // Ctrl/Cmd + scroll-wheel zoom (desktop)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+      setScale(s => Math.min(Math.max(s * (e.deltaY < 0 ? 1.1 : 1 / 1.1), 0.2), 4))
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
 
   if (!members.length) {
     return (
@@ -425,69 +480,101 @@ export function FamilyTree({ members, onAddChild, onEdit }: FamilyTreeProps) {
 
   return (
     <div className="relative">
-      <div className="overflow-x-auto overflow-y-visible pb-8">
-        <div className="relative" style={{ width: layout.totalW, height: layout.totalH, minWidth: '100%' }}>
+      {/* Zoom controls */}
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+        <button
+          onClick={() => setScale(s => Math.min(s * 1.25, 4))}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold transition-all hover:opacity-80"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+          title="Phóng to"
+        >+</button>
+        <button
+          onClick={() => setScale(1)}
+          className="h-8 px-2 rounded-lg flex items-center justify-center text-xs font-medium transition-all hover:opacity-80"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-3)', minWidth: '3rem' }}
+          title="Đặt lại tỉ lệ"
+        >{Math.round(scale * 100)}%</button>
+        <button
+          onClick={() => setScale(s => Math.max(s / 1.25, 0.2))}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-base font-bold transition-all hover:opacity-80"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+          title="Thu nhỏ"
+        >−</button>
+      </div>
 
-          {/* SVG connector overlay — positions are purely computed, no DOM queries */}
-          <svg
-            className="absolute inset-0 pointer-events-none"
-            width={layout.totalW}
-            height={layout.totalH}
-            style={{ overflow: 'visible' }}
-          >
-            {svgLines}
-          </svg>
+      <div ref={containerRef} className="overflow-auto pb-8">
+        {/* Spacer: gives scroll container the correct dimensions at current scale */}
+        <div style={{
+          width: layout.totalW * scale,
+          height: layout.totalH * scale,
+          position: 'relative',
+          minWidth: '100%',
+        }}>
+          {/* Transform wrapper: scales the tree without affecting scroll box layout */}
+          <div style={{
+            position: 'absolute',
+            top: 0, left: 0,
+            width: layout.totalW,
+            height: layout.totalH,
+            transform: `scale(${scale})`,
+            transformOrigin: '0 0',
+          }}>
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              width={layout.totalW}
+              height={layout.totalH}
+              style={{ overflow: 'visible' }}
+            >
+              {svgLines}
+            </svg>
 
-          {/* Member cards — absolutely positioned by layout engine */}
-          {layout.allUnits.map(unit => {
-            const pp = layout.positions[unit.primary.id]
-            if (!pp) return null
-            const sp = unit.spouse ? layout.positions[unit.spouse.id] : null
+            {layout.allUnits.map(unit => {
+              const pp = layout.positions[unit.primary.id]
+              if (!pp) return null
+              const sp = unit.spouse ? layout.positions[unit.spouse.id] : null
 
-            return (
-              <React.Fragment key={unit.key}>
-                {/* Primary card */}
-                <div className="absolute" style={{ left: pp.left, top: pp.top }}>
-                  <MemberCard
-                    member={unit.primary}
-                    isSelected={selected?.id === unit.primary.id}
-                    onClick={() => setSelected(p =>
-                      p?.id === unit.primary.id ? null : unit.primary)}
-                    onEdit={onEdit}
-                  />
-                </div>
-
-                {/* Spouse card */}
-                {unit.spouse && sp && (
-                  <div className="absolute" style={{ left: sp.left, top: sp.top }}>
+              return (
+                <React.Fragment key={unit.key}>
+                  <div className="absolute" style={{ left: pp.left, top: pp.top }}>
                     <MemberCard
-                      member={unit.spouse}
-                      isSelected={selected?.id === unit.spouse.id}
+                      member={unit.primary}
+                      isSelected={selected?.id === unit.primary.id}
                       onClick={() => setSelected(p =>
-                        p?.id === unit.spouse!.id ? null : unit.spouse!)}
+                        p?.id === unit.primary.id ? null : unit.primary)}
                       onEdit={onEdit}
                     />
                   </div>
-                )}
 
-                {/* Add child button — centered under the couple unit */}
-                {onAddChild && (
-                  <button
-                    className="btn-tree-add absolute w-7 h-7 rounded-full flex items-center justify-center"
-                    style={{ left: unit.cx - 14, top: pp.top + CH + 10 }}
-                    onClick={() => onAddChild({
-                      fatherId: unit.fatherId,
-                      motherId: unit.motherId,
-                      generation: unit.generation + 1,
-                    })}
-                    title="Thêm con"
-                  >
-                    <Plus size={13} />
-                  </button>
-                )}
-              </React.Fragment>
-            )
-          })}
+                  {unit.spouse && sp && (
+                    <div className="absolute" style={{ left: sp.left, top: sp.top }}>
+                      <MemberCard
+                        member={unit.spouse}
+                        isSelected={selected?.id === unit.spouse.id}
+                        onClick={() => setSelected(p =>
+                          p?.id === unit.spouse!.id ? null : unit.spouse!)}
+                        onEdit={onEdit}
+                      />
+                    </div>
+                  )}
+
+                  {onAddChild && (
+                    <button
+                      className="btn-tree-add absolute w-7 h-7 rounded-full flex items-center justify-center"
+                      style={{ left: unit.cx - 14, top: pp.top + CH + 10 }}
+                      onClick={() => onAddChild({
+                        fatherId: unit.fatherId,
+                        motherId: unit.motherId,
+                        generation: unit.generation + 1,
+                      })}
+                      title="Thêm con"
+                    >
+                      <Plus size={13} />
+                    </button>
+                  )}
+                </React.Fragment>
+              )
+            })}
+          </div>
         </div>
       </div>
 
