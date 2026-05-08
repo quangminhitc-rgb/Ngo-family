@@ -193,7 +193,9 @@ export default function AdminPhotosPage() {
     if (!confirm(`Xóa ${selectedIds.size} ảnh đã chọn?`)) return
     setDeleting(true)
     try {
-      await Promise.all([...selectedIds].map(id => fetch(`/api/photos/${id}`, { method: 'DELETE' })))
+      for (const id of Array.from(selectedIds)) {
+        await fetch(`/api/photos/${id}`, { method: 'DELETE' })
+      }
       setPhotos(prev => prev.filter(p => !selectedIds.has(p.id)))
       setSelectedIds(new Set())
       setSelectMode(false)
