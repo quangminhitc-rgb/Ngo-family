@@ -27,7 +27,9 @@
     "next-auth": "^4.24.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "sharp": "^0.33.4"
+    "react-photo-album": "^3.6.2",
+    "sharp": "^0.33.4",
+    "yet-another-react-lightbox": "^3.33.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
